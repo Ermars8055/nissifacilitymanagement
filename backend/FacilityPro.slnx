@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="FacilityPro.Api/FacilityPro.Api.csproj" />
+  <Project Path="FacilityPro.Domain/FacilityPro.Domain.csproj" />
+  <Project Path="FacilityPro.Infrastructure/FacilityPro.Infrastructure.csproj" />
+</Solution>
