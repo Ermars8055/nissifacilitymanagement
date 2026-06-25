@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, ListChecks, Trash2, GripVertical, X, Type, Hash, CheckSquare, Camera } from 'lucide-react'
+import { Plus, ListChecks, Trash2, GripVertical, X, Type, Hash, CheckSquare, Camera, Link2, Unlink } from 'lucide-react'
 import api from '../api/client'
 
 const ITEM_TYPES = [
@@ -121,11 +121,178 @@ function TemplateEditor({ template, buildings, onSave, onCancel }) {
   )
 }
 
+function AssignModal({ template, buildings, onClose, onAssigned }) {
+  const [buildingId, setBuildingId] = useState('')
+  const [entityType, setEntityType] = useState('Room')
+  const [entities, setEntities] = useState([])
+  const [loadingEntities, setLoadingEntities] = useState(false)
+  const [selectedEntity, setSelectedEntity] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  async function loadEntities(bId, type) {
+    if (!bId) { setEntities([]); setSelectedEntity(null); return }
+    setLoadingEntities(true)
+    setSelectedEntity(null)
+    try {
+      if (type === 'Room') {
+        const res = await api.get(`/Hierarchy/building/${bId}`)
+        const building = res.data
+        const rooms = (building.floors || []).flatMap(f =>
+          (f.rooms || []).map(r => ({ id: r.id, name: `${f.name} → ${r.name}`, type: 'Room' }))
+        )
+        setEntities(rooms)
+      } else {
+        const res = await api.get(`/Assets/building/${bId}`)
+        setEntities((res.data || []).map(a => ({ id: a.id, name: a.name, type: 'Asset' })))
+      }
+    } catch (_) { setEntities([]) }
+    setLoadingEntities(false)
+  }
+
+  function onBuildingChange(bId) {
+    setBuildingId(bId)
+    loadEntities(bId, entityType)
+  }
+
+  function onTypeChange(t) {
+    setEntityType(t)
+    loadEntities(buildingId, t)
+  }
+
+  async function assign() {
+    if (!selectedEntity) return
+    setSaving(true)
+    try {
+      await api.post(`/Checklists/${template.id}/assign`, {
+        entityId: selectedEntity.id,
+        entityType: selectedEntity.type,
+        entityName: selectedEntity.name,
+      })
+      onAssigned()
+    } catch (_) {}
+    setSaving(false)
+  }
+
+  async function unassign(entityId) {
+    try {
+      await api.delete(`/Checklists/${template.id}/assign/${entityId}`)
+      onAssigned()
+    } catch (_) {}
+  }
+
+  const currentAssignments = template.assignments || []
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Assign Template</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{template.name}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Current assignments */}
+          {currentAssignments.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Currently Assigned To</p>
+              <div className="flex flex-wrap gap-2">
+                {currentAssignments.map(a => (
+                  <span key={a.id} className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 text-xs font-medium px-3 py-1.5 rounded-full">
+                    {a.entityName || a.entityId}
+                    <button onClick={() => unassign(a.entityId)} className="hover:text-red-500 transition-colors">
+                      <Unlink size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="border-t border-gray-50 pt-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Add New Assignment</p>
+
+            {/* Building selector */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-500 block mb-1">Building</label>
+              <select className="input" value={buildingId} onChange={e => onBuildingChange(e.target.value)}>
+                <option value="">Select building...</option>
+                {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+
+            {/* Entity type toggle */}
+            <div className="flex gap-2 mb-3">
+              {['Room', 'Asset'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => onTypeChange(t)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                    entityType === t
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            {/* Entity list */}
+            {loadingEntities ? (
+              <p className="text-xs text-gray-400 text-center py-4">Loading {entityType.toLowerCase()}s...</p>
+            ) : entities.length === 0 && buildingId ? (
+              <p className="text-xs text-gray-400 text-center py-4">No {entityType.toLowerCase()}s found in this building.</p>
+            ) : (
+              <div className="max-h-48 overflow-y-auto space-y-1.5">
+                {entities.map(e => {
+                  const alreadyAssigned = currentAssignments.some(a => a.entityId === e.id)
+                  return (
+                    <button
+                      key={e.id}
+                      disabled={alreadyAssigned}
+                      onClick={() => setSelectedEntity(e)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm border transition-colors ${
+                        alreadyAssigned
+                          ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed'
+                          : selectedEntity?.id === e.id
+                          ? 'bg-brand-50 text-brand-700 border-brand-300 font-medium'
+                          : 'bg-white text-gray-700 border-gray-100 hover:border-brand-200 hover:bg-brand-50/40'
+                      }`}
+                    >
+                      {e.name} {alreadyAssigned && <span className="text-xs text-gray-400">(already assigned)</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-3 p-5 border-t border-gray-100">
+          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+          <button
+            onClick={assign}
+            disabled={!selectedEntity || saving}
+            className="btn-primary flex-1 flex items-center justify-center gap-2"
+          >
+            <Link2 size={14} />
+            {saving ? 'Assigning...' : 'Assign Template'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Checklists() {
   const [templates, setTemplates] = useState([])
   const [buildings, setBuildings] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null) // null = hidden, {} = new, template obj = edit
+  const [assigningId, setAssigningId] = useState(null) // id of template being assigned
 
   useEffect(() => { fetchAll() }, [])
 
@@ -170,6 +337,18 @@ export default function Checklists() {
         />
       )}
 
+      {assigningId && (() => {
+        const assigningTemplate = templates.find(t => t.id === assigningId)
+        return assigningTemplate ? (
+          <AssignModal
+            template={assigningTemplate}
+            buildings={buildings}
+            onClose={() => setAssigningId(null)}
+            onAssigned={fetchAll}
+          />
+        ) : null
+      })()}
+
       {loading ? (
         <div className="text-center text-gray-400 py-16 text-sm">Loading...</div>
       ) : templates.length === 0 && editing === null ? (
@@ -213,9 +392,15 @@ export default function Checklists() {
                   </div>
                 )}
 
-                <div className="mt-3 pt-3 border-t border-gray-50 flex justify-end">
+                <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => setAssigningId(t.id)}
+                    className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold hover:text-brand-600 transition-colors"
+                  >
+                    <Link2 size={12} /> Assign to Room/Asset
+                  </button>
                   <button onClick={() => setEditing(t)} className="text-xs text-brand-600 font-semibold hover:underline">
-                    Edit Template →
+                    Edit →
                   </button>
                 </div>
               </div>

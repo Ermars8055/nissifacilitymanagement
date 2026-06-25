@@ -50,17 +50,10 @@ class _ChecklistExecutionScreenState extends State<ChecklistExecutionScreen> {
 
   Future<void> _loadTask() async {
     try {
-      final tasks = await ApiClient.get('/Tasks');
-      final found = (tasks as List).firstWhere(
-        (t) => t['id'] == widget.taskId,
-        orElse: () => null,
-      );
-      if (found == null) {
-        setState(() => isLoading = false);
-        return;
-      }
-      task = found as Map<String, dynamic>;
+      // Use GET /Tasks/{id} directly — no need to fetch all tasks
+      task = await ApiClient.get('/Tasks/${widget.taskId}') as Map<String, dynamic>;
 
+      // 1. Try task-level template (if field ever added to WorkerTask)
       final templateId = task!['checklistTemplateId'] as String?;
       if (templateId != null && templateId.isNotEmpty) {
         try {
@@ -71,7 +64,31 @@ class _ChecklistExecutionScreenState extends State<ChecklistExecutionScreen> {
           items = _defaultItems();
         }
       } else {
-        items = _defaultItems();
+        // 2. Fallback: look up template assigned to this task's entity (room/asset)
+        final entityId = task!['entityId'] as String? ?? '';
+        if (entityId.isNotEmpty) {
+          try {
+            final templates = await ApiClient.get('/Checklists') as List;
+            Map<String, dynamic>? matched;
+            for (final t in templates) {
+              final assignments = (t['assignments'] as List?) ?? [];
+              if (assignments.any((a) => (a['entityId'] as String?) == entityId)) {
+                matched = t as Map<String, dynamic>;
+                break;
+              }
+            }
+            if (matched != null) {
+              final rawItems = jsonDecode(matched['itemsJson'] ?? '[]') as List;
+              items = rawItems.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            } else {
+              items = _defaultItems();
+            }
+          } catch (_) {
+            items = _defaultItems();
+          }
+        } else {
+          items = _defaultItems();
+        }
       }
 
       for (int i = 0; i < items.length; i++) {
