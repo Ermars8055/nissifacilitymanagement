@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
+import '../../core/services/update_service.dart';
 import '../../core/session/session_manager.dart';
 
 class ExecutiveDashboard extends StatefulWidget {
@@ -18,6 +19,10 @@ class _ExecutiveDashboardState extends State<ExecutiveDashboard> {
   void initState() {
     super.initState();
     _fetchDashboardData();
+    // Check for app updates silently on launch
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdate(context);
+    });
   }
 
   String _greeting() {

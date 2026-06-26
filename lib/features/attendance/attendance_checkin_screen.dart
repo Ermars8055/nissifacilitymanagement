@@ -4,7 +4,6 @@ import 'package:geolocator/geolocator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/services/session_service.dart';
 import '../../core/session/session_manager.dart';
-import '../qr/qr_scanner_screen.dart';
 
 class AttendanceCheckinScreen extends StatefulWidget {
   final String buildingId;
@@ -39,11 +38,10 @@ class _AttendanceCheckinScreenState extends State<AttendanceCheckinScreen> {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.deniedForever || perm == LocationPermission.denied) {
-        _setError('Location permission required for attendance check-in.\nGo to Settings → App Permissions → Location.');
+        _setError('Location permission required.\nGo to Settings → App Permissions → Location.');
         return;
       }
 
-      // 2. Check if location services are enabled
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         _setError('Please enable Location Services on your device and try again.');
@@ -52,7 +50,7 @@ class _AttendanceCheckinScreenState extends State<AttendanceCheckinScreen> {
 
       setState(() => _statusMessage = 'Locking GPS position...');
 
-      // 3. Get precise position
+      // 2. Get precise position
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -60,71 +58,47 @@ class _AttendanceCheckinScreenState extends State<AttendanceCheckinScreen> {
         ),
       );
 
-      // 4. Check isMock (fake GPS detection)
-      final isMock = position.isMocked;
-      if (isMock) {
+      // 3. Block fake GPS apps
+      if (position.isMocked) {
         _setError('Fake GPS detected! Disable mock location apps and try again.');
         return;
       }
 
-      setState(() => _statusMessage = 'Scanning lobby QR code...');
+      setState(() => _statusMessage = 'Verifying location...');
 
-      // 5. Scan lobby QR
-      if (!mounted) return;
-      final scannedQr = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (_) => const QrScannerScreen(title: 'Scan Lobby QR Code'),
-          fullscreenDialog: true,
-        ),
-      );
-      if (!mounted) return;
-      if (scannedQr == null) {
-        setState(() { _loading = false; _statusMessage = null; });
-        return;
-      }
-
-      setState(() => _statusMessage = 'Verifying attendance...');
-
-      // 6. POST to /Sessions/start
+      // 4. POST to backend — no QR needed, GPS only
       final workerId = SessionManager().currentUserId ?? '';
       final response = await ApiClient.post('/Sessions/start', {
         'workerId': workerId,
         'buildingId': widget.buildingId,
-        'lobbyQrCode': scannedQr,
+        'lobbyQrCode': '',
         'userLat': position.latitude,
         'userLng': position.longitude,
-        'isMockLocation': isMock,
+        'isMockLocation': false,
       }) as Map<String, dynamic>;
 
-      // 7. Save session
       SessionService().setSession(response);
       final dist = (response['distanceMetres'] as num?)?.toDouble() ?? 0;
 
       setState(() {
         _loading = false;
         _success = true;
-        _statusMessage = 'Check-in confirmed!\nYou are ${dist.toStringAsFixed(0)}m from the building entrance.';
+        _statusMessage = 'You are verified on-site!\n${dist.toStringAsFixed(0)}m from building entrance.';
       });
     } catch (e) {
       final msg = e.toString();
-      if (msg.contains('outside_geofence') || msg.contains('geofence')) {
-        _setError('You are too far from ${widget.buildingName}.\nPlease be within 40m of the building entrance.');
+      if (msg.contains('outside_geofence')) {
+        _setError('You are too far from ${widget.buildingName}.\nPlease be within 40m of the building to check in.');
       } else if (msg.contains('mock_location')) {
         _setError('Fake GPS detected! Disable mock location apps and try again.');
-      } else if (msg.contains('wrong_qr')) {
-        _setError('Wrong QR code. Please scan the official lobby QR code.');
       } else {
-        _setError('Check-in failed: $msg');
+        _setError('Check-in failed. Make sure you are at the building.\n$msg');
       }
     }
   }
 
   void _setError(String msg) {
-    setState(() {
-      _loading = false;
-      _success = false;
-      _statusMessage = msg;
-    });
+    setState(() { _loading = false; _success = false; _statusMessage = msg; });
   }
 
   @override
@@ -161,12 +135,8 @@ class _AttendanceCheckinScreenState extends State<AttendanceCheckinScreen> {
                 child: Row(
                   children: [
                     Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEBF2ED),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                      width: 52, height: 52,
+                      decoration: BoxDecoration(color: const Color(0xFFEBF2ED), borderRadius: BorderRadius.circular(14)),
                       child: const Icon(Icons.business_rounded, color: Color(0xFF2D6B4F), size: 28),
                     ),
                     const SizedBox(width: 16),
@@ -177,7 +147,7 @@ class _AttendanceCheckinScreenState extends State<AttendanceCheckinScreen> {
                           Text(widget.buildingName,
                               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
                           const SizedBox(height: 3),
-                          const Text('Tap below to start attendance verification',
+                          const Text('Tap below to verify you are on-site',
                               style: TextStyle(fontSize: 13, color: Color(0xFF8C8278))),
                         ],
                       ),
@@ -188,85 +158,49 @@ class _AttendanceCheckinScreenState extends State<AttendanceCheckinScreen> {
 
               const SizedBox(height: 32),
 
-              // Steps explanation
-              _StepRow(step: '1', icon: Icons.location_on_outlined, label: 'GPS captures your exact position'),
+              _StepRow(step: '1', icon: Icons.location_on_outlined,   label: 'GPS captures your exact position automatically'),
               const SizedBox(height: 14),
-              _StepRow(step: '2', icon: Icons.security_rounded, label: 'Fake GPS apps are automatically blocked'),
+              _StepRow(step: '2', icon: Icons.security_rounded,        label: 'Fake GPS apps are blocked automatically'),
               const SizedBox(height: 14),
-              _StepRow(step: '3', icon: Icons.qr_code_scanner_rounded, label: 'Scan the lobby QR code at the entrance'),
-              const SizedBox(height: 14),
-              _StepRow(step: '4', icon: Icons.check_circle_outline_rounded, label: 'Server verifies you are within 40m of building'),
+              _StepRow(step: '3', icon: Icons.check_circle_outline_rounded, label: 'Server confirms you are within 40m of the building'),
 
               const Spacer(),
 
-              // Status message
               if (_statusMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: _success == true
-                        ? const Color(0xFFEBF2ED)
-                        : _success == false
-                            ? const Color(0xFFF9ECEC)
-                            : const Color(0xFFF3EFE9),
+                    color: _success == true ? const Color(0xFFEBF2ED) : _success == false ? const Color(0xFFF9ECEC) : const Color(0xFFF3EFE9),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: _success == true
-                          ? const Color(0xFF2D6B4F)
-                          : _success == false
-                              ? const Color(0xFF9B2020)
-                              : const Color(0xFFDDD5C8),
+                      color: _success == true ? const Color(0xFF2D6B4F) : _success == false ? const Color(0xFF9B2020) : const Color(0xFFDDD5C8),
                     ),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        _success == true
-                            ? Icons.check_circle_rounded
-                            : _success == false
-                                ? Icons.error_rounded
-                                : Icons.info_outline_rounded,
-                        color: _success == true
-                            ? const Color(0xFF2D6B4F)
-                            : _success == false
-                                ? const Color(0xFF9B2020)
-                                : const Color(0xFF8C8278),
+                        _success == true ? Icons.check_circle_rounded : _success == false ? Icons.error_rounded : Icons.info_outline_rounded,
+                        color: _success == true ? const Color(0xFF2D6B4F) : _success == false ? const Color(0xFF9B2020) : const Color(0xFF8C8278),
                         size: 20,
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _statusMessage!,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: _success == true
-                                ? const Color(0xFF1E3D2F)
-                                : _success == false
-                                    ? const Color(0xFF7A1515)
-                                    : const Color(0xFF4A4540),
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
+                      Expanded(child: Text(_statusMessage!, style: TextStyle(
+                        fontSize: 14, height: 1.4,
+                        color: _success == true ? const Color(0xFF1E3D2F) : _success == false ? const Color(0xFF7A1515) : const Color(0xFF4A4540),
+                      ))),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
               ],
 
-              // Main CTA button
               if (_success == true)
                 GestureDetector(
                   onTap: () => Navigator.of(context).pop(true),
                   child: Container(
                     height: 56,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2D6B4F),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Center(
-                      child: Text('Start Working', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                    ),
+                    decoration: BoxDecoration(color: const Color(0xFF2D6B4F), borderRadius: BorderRadius.circular(16)),
+                    child: const Center(child: Text('Start Working', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
                   ),
                 )
               else
@@ -280,16 +214,14 @@ class _AttendanceCheckinScreenState extends State<AttendanceCheckinScreen> {
                     ),
                     child: _loading
                         ? const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)))
-                        : const Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.fingerprint_rounded, color: Colors.white, size: 22),
-                                SizedBox(width: 10),
-                                Text('Check In Now', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
+                        : const Center(child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.my_location_rounded, color: Colors.white, size: 22),
+                              SizedBox(width: 10),
+                              Text('Verify My Location', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                            ],
+                          )),
                   ),
                 ),
 
@@ -306,7 +238,6 @@ class _StepRow extends StatelessWidget {
   final String step;
   final IconData icon;
   final String label;
-
   const _StepRow({required this.step, required this.icon, required this.label});
 
   @override
@@ -314,8 +245,7 @@ class _StepRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 36,
-          height: 36,
+          width: 36, height: 36,
           decoration: BoxDecoration(color: const Color(0xFFEBF2ED), borderRadius: BorderRadius.circular(10)),
           child: Center(child: Text(step, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E3D2F)))),
         ),

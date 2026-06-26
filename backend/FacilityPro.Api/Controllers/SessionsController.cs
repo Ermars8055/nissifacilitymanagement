@@ -51,9 +51,6 @@ public class SessionsController : ControllerBase
         var building = await _context.Buildings.FindAsync(dto.BuildingId);
         if (building == null) return NotFound(new { error = "building_not_found" });
 
-        if (!string.IsNullOrEmpty(building.LobbyQrCode) && building.LobbyQrCode != dto.LobbyQrCode)
-            return BadRequest(new { error = "wrong_qr", message = "Wrong lobby QR code scanned." });
-
         // 3. Geofence check (only when building coordinates are configured)
         double distance = 0;
         if (building.TargetLat.HasValue && building.TargetLng.HasValue)

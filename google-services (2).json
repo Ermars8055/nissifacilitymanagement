@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1021610120973",
+    "project_id": "facilitypro-3f693",
+    "storage_bucket": "facilitypro-3f693.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1021610120973:android:3b085120a4c68cfab90244",
+        "android_client_info": {
+          "package_name": "management.com"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1021610120973-f84amn4kbps8l0q190dc09r4peai60dm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "management.com",
+            "certificate_hash": "97b1caa8160f463972ec57042c93ca03d010d654"
+          }
+        },
+        {
+          "client_id": "1021610120973-srajus35llpt2c04asog2o5hvlsr5tth.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbZHBDTld7MPG6bBdXmSVuBCkDfo010cM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1021610120973-a9rg7vth6gtu7ieljpte0kddafoglq72.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
