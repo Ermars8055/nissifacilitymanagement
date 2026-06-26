@@ -8,7 +8,7 @@ namespace FacilityPro.Api.Controllers;
 public class VersionController : ControllerBase
 {
     // Update these values each time you upload a new APK to the server
-    private const string LatestVersion = "1.0.1";
+    private const string LatestVersion = "1.0.0";
     private const string ApkUrl = "https://management.ermarscastar.in/uploads/FacilityPro.apk";
 
     [AllowAnonymous]
