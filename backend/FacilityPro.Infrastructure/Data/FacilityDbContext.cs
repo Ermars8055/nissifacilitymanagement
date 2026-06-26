@@ -30,6 +30,10 @@ public class FacilityDbContext : DbContext
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserBuildingMapping> UserBuildingMappings { get; set; } = null!;
 
+    // Anti-Spoofing / Attendance
+    public DbSet<WorkerSession> WorkerSessions { get; set; } = null!;
+    public DbSet<TaskAppEvent> TaskAppEvents { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -113,5 +117,25 @@ public class FacilityDbContext : DbContext
             .HasOne(um => um.Building)
             .WithMany()
             .HasForeignKey(um => um.BuildingId);
+
+        // WorkerSession
+        modelBuilder.Entity<WorkerSession>()
+            .HasOne(ws => ws.Worker)
+            .WithMany()
+            .HasForeignKey(ws => ws.WorkerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<WorkerSession>()
+            .HasOne(ws => ws.Building)
+            .WithMany()
+            .HasForeignKey(ws => ws.BuildingId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // TaskAppEvent
+        modelBuilder.Entity<TaskAppEvent>()
+            .HasOne(e => e.Task)
+            .WithMany()
+            .HasForeignKey(e => e.TaskId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/session/session_manager.dart';
+import '../../core/services/auth_service.dart';
 
 class AppScaffold extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -52,6 +53,7 @@ class AppScaffold extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F3EC),
+      extendBody: true,
       body: navigationShell,
       bottomNavigationBar: _BottomNav(
         currentDisplayIndex: _currentDisplayIndex,
@@ -330,9 +332,9 @@ class _DesktopSidebar extends StatelessWidget {
                 ),
                 IconButton(
                   icon: const Icon(Icons.logout_rounded, size: 20, color: Color(0xFF8C8278)),
-                  onPressed: () {
-                    SessionManager().clear();
-                    context.go('/login');
+                  onPressed: () async {
+                    await AuthService().signOut();
+                    if (context.mounted) context.go('/login');
                   },
                   tooltip: 'Logout',
                   padding: EdgeInsets.zero,

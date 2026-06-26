@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class QrScannerScreen extends StatefulWidget {
   final String? expectedCode;
@@ -12,15 +13,60 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
-  final MobileScannerController _controller = MobileScannerController();
+  MobileScannerController? _controller;
   bool _hasScanned = false;
   bool _showManualEntry = false;
   bool _torchOn = false;
+  bool _permissionGranted = false;
+  bool _checkingPermission = true;
+  String? _errorMessage;
   final _manualController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _requestCameraPermission();
+  }
+
+  Future<void> _requestCameraPermission() async {
+    try {
+      var status = await Permission.camera.status;
+      if (!status.isGranted) {
+        status = await Permission.camera.request();
+      }
+      if (!mounted) return;
+      if (status.isGranted) {
+        final ctrl = MobileScannerController(
+          detectionSpeed: DetectionSpeed.normal,
+          facing: CameraFacing.back,
+        );
+        setState(() {
+          _controller = ctrl;
+          _permissionGranted = true;
+          _checkingPermission = false;
+        });
+      } else {
+        setState(() {
+          _permissionGranted = false;
+          _checkingPermission = false;
+          _errorMessage = status.isPermanentlyDenied
+              ? 'Camera access is permanently denied.\nPlease enable it in App Settings.'
+              : 'Camera permission is required to scan QR codes.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _checkingPermission = false;
+        _permissionGranted = false;
+        _errorMessage = 'Failed to request camera permission: $e';
+      });
+    }
+  }
+
+  @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     _manualController.dispose();
     super.dispose();
   }
@@ -53,7 +99,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     }
 
     setState(() => _hasScanned = true);
-    _controller.stop();
+    _controller?.stop();
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -72,16 +118,122 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     });
   }
 
+  String _errorLabel(MobileScannerErrorCode code) {
+    switch (code) {
+      case MobileScannerErrorCode.permissionDenied:
+        return 'Camera permission denied.\nTap "Open Settings" to enable it.';
+      case MobileScannerErrorCode.unsupported:
+        return 'This device does not support\ncamera-based QR scanning.';
+      default:
+        return 'Camera failed to start.\nError code: ${code.name}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ── Permission checking ───────────────────────────────────────────────
+    if (_checkingPermission) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator(color: Colors.white)),
+      );
+    }
+
+    // ── Permission denied ─────────────────────────────────────────────────
+    if (!_permissionGranted || _controller == null) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _CircleBtn(icon: Icons.close_rounded, onTap: () => Navigator.of(context).pop(null)),
+                ),
+              ),
+              const Spacer(),
+              const Icon(Icons.camera_alt_outlined, color: Colors.white54, size: 64),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  _errorMessage ?? 'Camera permission required.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 28),
+              GestureDetector(
+                onTap: () async {
+                  await openAppSettings();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E3D2F),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Text('Open Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+              const Spacer(),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
           // ── Camera feed ──────────────────────────────────────────────────
           MobileScanner(
-            controller: _controller,
+            controller: _controller!,
             onDetect: _onDetect,
+            errorBuilder: (context, error, child) {
+              return Container(
+                color: Colors.black,
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _CircleBtn(icon: Icons.close_rounded, onTap: () => Navigator.of(context).pop(null)),
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 56),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          _errorLabel(error.errorCode),
+                          style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      if (error.errorCode == MobileScannerErrorCode.permissionDenied) ...[
+                        const SizedBox(height: 24),
+                        GestureDetector(
+                          onTap: openAppSettings,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                            decoration: BoxDecoration(color: const Color(0xFF1E3D2F), borderRadius: BorderRadius.circular(12)),
+                            child: const Text('Open Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                      const Spacer(),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
 
           // ── Dark vignette overlay ────────────────────────────────────────
@@ -126,7 +278,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       _CircleBtn(
                         icon: _torchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
                         onTap: () {
-                          _controller.toggleTorch();
+                          _controller?.toggleTorch();
                           setState(() => _torchOn = !_torchOn);
                         },
                         active: _torchOn,

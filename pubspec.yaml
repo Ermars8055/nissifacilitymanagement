@@ -41,12 +41,14 @@ dependencies:
   http: ^1.6.0
   qr_flutter: ^4.1.0
   mobile_scanner: ^6.0.0
+  permission_handler: ^11.3.1
   firebase_core: ^3.13.1
   firebase_auth: ^5.5.3
   google_sign_in: ^6.2.2
   image_picker: ^1.1.2
   connectivity_plus: ^6.1.1
   shared_preferences: ^2.5.3
+  geolocator: ^13.0.2
 
 dev_dependencies:
   flutter_test:

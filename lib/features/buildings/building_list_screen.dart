@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/network/api_client.dart';
+import '../../core/session/session_manager.dart';
 
 class BuildingListScreen extends StatefulWidget {
   const BuildingListScreen({super.key});
@@ -9,41 +11,101 @@ class BuildingListScreen extends StatefulWidget {
 }
 
 class _BuildingListScreenState extends State<BuildingListScreen> {
-  final List<Map<String, dynamic>> _buildings = [
-    {
-      'id': 'BLD-001',
-      'name': 'Apex Tower',
-      'client': 'Global Financial',
-      'floors': '42 Floors',
-      'rooms': '840 Rooms',
-      'status': 'Alert Active',
-      'statusColor': Color(0xFF9B2020),
-      'score': 85,
-      'gradient': [Color(0xFF1A2E20), Color(0xFF2D6B4F)],
-    },
-    {
-      'id': 'BLD-042',
-      'name': 'Nexus Campus',
-      'client': 'Tech Corp Inc.',
-      'floors': '4 Floors',
-      'rooms': '210 Rooms',
-      'status': 'Optimal',
-      'statusColor': Color(0xFF2D6B4F),
-      'score': 98,
-      'gradient': [Color(0xFF1E3D2F), Color(0xFF2D6B4F)],
-    },
-    {
-      'id': 'BLD-118',
-      'name': 'Logistics Hub East',
-      'client': 'Prime Freight',
-      'floors': '1 Floor',
-      'rooms': '15 Zones',
-      'status': 'Maint. Scheduled',
-      'statusColor': Color(0xFFA05A10),
-      'score': 82,
-      'gradient': [Color(0xFF3A2810), Color(0xFFA05A10)],
-    },
+  List<Map<String, dynamic>> _buildings = [];
+  List<Map<String, dynamic>> _filtered = [];
+  bool _isLoading = true;
+  final _searchCtrl = TextEditingController();
+
+  static const _gradients = [
+    [Color(0xFF142B20), Color(0xFF2D6B4F)],
+    [Color(0xFF1E3D2F), Color(0xFF3A7A5A)],
+    [Color(0xFF1A2E40), Color(0xFF2D5A7A)],
+    [Color(0xFF3A2810), Color(0xFFA05A10)],
+    [Color(0xFF2B1A3A), Color(0xFF6B3FA0)],
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBuildings();
+    _searchCtrl.addListener(_applySearch);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _applySearch() {
+    final q = _searchCtrl.text.toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? _buildings
+          : _buildings.where((b) =>
+              (b['name'] as String).toLowerCase().contains(q) ||
+              (b['client'] as String).toLowerCase().contains(q)).toList();
+    });
+  }
+
+  Future<void> _fetchBuildings() async {
+    setState(() => _isLoading = true);
+    try {
+      final role = SessionManager().currentRole;
+      final isAdmin = role == 'Admin' || role == 'Super Admin' || role == 'Manager';
+      final List<dynamic> all = [];
+
+      if (isAdmin) {
+        final clients = await ApiClient.get('/Hierarchy/clients');
+        for (final client in clients) {
+          final buildings = await ApiClient.get('/Hierarchy/buildings/${client['id']}');
+          for (final b in buildings) {
+            b['_clientName'] = client['name'] ?? '';
+          }
+          all.addAll(buildings);
+        }
+      } else {
+        final user = SessionManager().currentUser;
+        final ids = (user?['buildingIds'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        for (final id in ids) {
+          try {
+            final b = await ApiClient.get('/Hierarchy/building/$id');
+            all.add(b);
+          } catch (_) {}
+        }
+      }
+
+      final mapped = all.asMap().entries.map<Map<String, dynamic>>((entry) {
+        final i = entry.key;
+        final b = entry.value as Map<String, dynamic>;
+        final score = (b['healthScore'] as num?)?.toInt() ?? 85;
+        final gradient = _gradients[i % _gradients.length];
+        return {
+          'id': b['id'].toString(),
+          'name': b['name'] ?? 'Unknown',
+          'client': b['_clientName'] ?? b['clientName'] ?? '',
+          'floors': '${b['floorCount'] ?? 0} Floors',
+          'rooms': '${b['roomCount'] ?? 0} Rooms',
+          'status': score >= 90 ? 'Optimal' : score >= 75 ? 'Good' : 'Needs Attention',
+          'statusColor': score >= 90
+              ? const Color(0xFF2D6B4F)
+              : score >= 75
+                  ? const Color(0xFFA05A10)
+                  : const Color(0xFF9B2020),
+          'score': score,
+          'gradient': gradient,
+        };
+      }).toList();
+
+      setState(() {
+        _buildings = mapped;
+        _filtered = mapped;
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,8 +181,9 @@ class _BuildingListScreenState extends State<BuildingListScreen> {
                             color: const Color(0xFFEEE8DF),
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: const TextField(
-                            decoration: InputDecoration(
+                          child: TextField(
+                            controller: _searchCtrl,
+                            decoration: const InputDecoration(
                               hintText: 'Search buildings...',
                               hintStyle: TextStyle(color: Color(0xFFAA9F94), fontSize: 14),
                               prefixIcon: Icon(Icons.search_rounded, color: Color(0xFF8C8278), size: 20),
@@ -152,16 +215,36 @@ class _BuildingListScreenState extends State<BuildingListScreen> {
 
             // ── Building Cards ────────────────────────────────────────────
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(18, 20, 18, 110),
-                itemCount: _buildings.length,
-                itemBuilder: (context, index) {
-                  return _BuildingCard(
-                    building: _buildings[index],
-                    onTap: () => context.go('/buildings/details/${_buildings[index]['id']}'),
-                  );
-                },
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E3D2F)))
+                  : _filtered.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.business_outlined, size: 48, color: Color(0xFFDDD5C8)),
+                              const SizedBox(height: 12),
+                              Text(
+                                _buildings.isEmpty ? 'No buildings found' : 'No results',
+                                style: const TextStyle(fontSize: 16, color: Color(0xFF8C8278)),
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _fetchBuildings,
+                          color: const Color(0xFF1E3D2F),
+                          child: ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(18, 20, 18, 110),
+                            itemCount: _filtered.length,
+                            itemBuilder: (context, index) {
+                              return _BuildingCard(
+                                building: _filtered[index],
+                                onTap: () => context.go('/buildings/details/${_filtered[index]['id']}'),
+                              );
+                            },
+                          ),
+                        ),
             ),
           ],
         ),

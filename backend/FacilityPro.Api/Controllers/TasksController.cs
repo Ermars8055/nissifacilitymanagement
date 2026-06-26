@@ -79,6 +79,19 @@ public class TasksController : ControllerBase
         return Ok(task);
     }
 
+    [HttpPost("{id}/events")]
+    public async Task<IActionResult> LogAppEvent(string id, [FromBody] TaskAppEvent evt)
+    {
+        var task = await _context.Tasks.FindAsync(id);
+        if (task == null) return NotFound();
+
+        evt.TaskId = id;
+        evt.Timestamp = DateTime.UtcNow;
+        _context.TaskAppEvents.Add(evt);
+        await _context.SaveChangesAsync();
+        return Ok(new { logged = true });
+    }
+
     [AllowAnonymous]
     [HttpPost("seed")]
     public async Task<IActionResult> SeedTasks()

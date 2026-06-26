@@ -176,48 +176,96 @@ class _FloorManagementScreenState extends State<FloorManagementScreen> {
                     itemCount: floors.length,
                     itemBuilder: (context, i) {
                       final floor = floors[i];
-                      return GestureDetector(
-                        onTap: () => context.push('/buildings/details/${widget.buildingId}/floors/${floor['id']}/rooms'),
-                        child: Container(
+                      return Dismissible(
+                        key: Key(floor['id'].toString()),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
                           margin: const EdgeInsets.only(bottom: 12),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 22),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: const Color(0xFF9B2020),
                             borderRadius: BorderRadius.circular(20),
-                            boxShadow: [BoxShadow(color: const Color(0xFF1A1714).withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4))],
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(color: const Color(0xFFEBF2ED), borderRadius: BorderRadius.circular(14)),
-                                  child: Center(
-                                    child: Text('${i + 1}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3D2F), fontSize: 18)),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(floor['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1714))),
-                                      if ((floor['qrCode'] ?? '').isNotEmpty) ...[
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.qr_code_rounded, size: 13, color: Color(0xFF8C8278)),
-                                            const SizedBox(width: 4),
-                                            Text(floor['qrCode'] ?? '', style: const TextStyle(fontSize: 12, color: Color(0xFF8C8278), fontFamily: 'monospace')),
-                                          ],
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.chevron_right_rounded, color: Color(0xFFDDD5C8), size: 24),
+                          child: const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.delete_rounded, color: Colors.white, size: 24),
+                              SizedBox(height: 4),
+                              Text('Delete', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                        confirmDismiss: (_) async {
+                          return await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              backgroundColor: Colors.white,
+                              title: const Text('Delete Floor', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
+                              content: Text('Delete "${floor['name']}"? All rooms and assets on this floor will also be removed.', style: const TextStyle(color: Color(0xFF4A4540))),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: Color(0xFF8C8278)))),
+                                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Color(0xFF9B2020), fontWeight: FontWeight.bold))),
                               ],
+                            ),
+                          ) ?? false;
+                        },
+                        onDismissed: (_) async {
+                          final id = floor['id'].toString();
+                          setState(() => floors.removeWhere((f) => f['id'].toString() == id));
+                          try {
+                            await ApiClient.delete('/Hierarchy/floor/$id');
+                          } catch (e) {
+                            _fetchFloors();
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to delete: $e'), backgroundColor: const Color(0xFF9B2020)),
+                            );
+                          }
+                        },
+                        child: GestureDetector(
+                          onTap: () => context.push('/buildings/details/${widget.buildingId}/floors/${floor['id']}/rooms'),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [BoxShadow(color: const Color(0xFF1A1714).withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4))],
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(color: const Color(0xFFEBF2ED), borderRadius: BorderRadius.circular(14)),
+                                    child: Center(
+                                      child: Text('${i + 1}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3D2F), fontSize: 18)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(floor['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1714))),
+                                        if ((floor['qrCode'] ?? '').isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.qr_code_rounded, size: 13, color: Color(0xFF8C8278)),
+                                              const SizedBox(width: 4),
+                                              Text(floor['qrCode'] ?? '', style: const TextStyle(fontSize: 12, color: Color(0xFF8C8278), fontFamily: 'monospace')),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.chevron_right_rounded, color: Color(0xFFDDD5C8), size: 24),
+                                ],
+                              ),
                             ),
                           ),
                         ),

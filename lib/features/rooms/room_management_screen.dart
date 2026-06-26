@@ -136,6 +136,33 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
     );
   }
 
+  Future<void> _confirmDeleteRoom(dynamic room) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Colors.white,
+        title: const Text('Delete Room', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
+        content: Text('Delete "${room['name']}"? All assets in this room will also be removed.', style: const TextStyle(color: Color(0xFF4A4540))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: Color(0xFF8C8278)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Color(0xFF9B2020), fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final id = room['id'].toString();
+    setState(() => rooms.removeWhere((r) => r['id'].toString() == id));
+    try {
+      await ApiClient.delete('/Hierarchy/room/$id');
+    } catch (e) {
+      _fetchRooms();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete: $e'), backgroundColor: const Color(0xFF9B2020)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -198,6 +225,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                         onTap: () => context.push(
                           '/buildings/details/${widget.buildingId}/floors/${widget.floorId}/rooms/${room['id']}/assets',
                         ),
+                        onLongPress: () => _confirmDeleteRoom(room),
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,

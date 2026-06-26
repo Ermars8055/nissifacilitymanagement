@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/services/session_service.dart';
+import '../../core/session/session_manager.dart';
+import '../attendance/attendance_checkin_screen.dart';
 import 'qr_scanner_screen.dart';
 
 class QrDashboardScreen extends StatefulWidget {
@@ -175,6 +178,11 @@ class _QrDashboardScreenState extends State<QrDashboardScreen> {
 
                     const SizedBox(height: 22),
 
+                    // Attendance check-in card
+                    _AttendanceCard(),
+
+                    const SizedBox(height: 22),
+
                     // Last scan result
                     if (_lastScanned != null) ...[
                       Container(
@@ -237,6 +245,124 @@ class _QrDashboardScreenState extends State<QrDashboardScreen> {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Attendance Check-In Card ───────────────────────────────────────────────────
+
+class _AttendanceCard extends StatefulWidget {
+  @override
+  State<_AttendanceCard> createState() => _AttendanceCardState();
+}
+
+class _AttendanceCardState extends State<_AttendanceCard> {
+  bool _hasSession = false;
+  double? _distance;
+
+  @override
+  void initState() {
+    super.initState();
+    SessionService().addListener(_onSessionChange);
+    _hasSession = SessionService().hasSession;
+    _distance = SessionService().lastDistanceMetres;
+  }
+
+  @override
+  void dispose() {
+    SessionService().removeListener(_onSessionChange);
+    super.dispose();
+  }
+
+  void _onSessionChange() {
+    if (mounted) {
+      setState(() {
+        _hasSession = SessionService().hasSession;
+        _distance = SessionService().lastDistanceMetres;
+      });
+    }
+  }
+
+  Future<void> _openCheckin() async {
+    final buildingId = SessionManager().selectedBuildingId;
+    final buildingName = SessionManager().selectedBuildingName ?? 'Building';
+    if (buildingId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select a building first before checking in.'),
+          backgroundColor: Color(0xFFA05A10),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AttendanceCheckinScreen(buildingId: buildingId, buildingName: buildingName),
+    ));
+    setState(() {
+      _hasSession = SessionService().hasSession;
+      _distance = SessionService().lastDistanceMetres;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _hasSession ? null : _openCheckin,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _hasSession ? const Color(0xFF2D6B4F) : const Color(0xFFDDD5C8),
+          ),
+          boxShadow: [BoxShadow(color: const Color(0xFF1A1714).withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 3))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: _hasSession ? const Color(0xFFEBF2ED) : const Color(0xFFF3EFE9),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(
+                _hasSession ? Icons.verified_rounded : Icons.fingerprint_rounded,
+                color: _hasSession ? const Color(0xFF2D6B4F) : const Color(0xFF8C8278),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _hasSession ? 'Attendance Verified' : 'Attendance Check-In',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: _hasSession ? const Color(0xFF1E3D2F) : const Color(0xFF1A1714),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _hasSession
+                        ? 'Active session · ${_distance != null ? "${_distance!.toStringAsFixed(0)}m from entrance" : "GPS confirmed"}'
+                        : 'Tap to verify you are on-site before starting tasks',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF8C8278)),
+                  ),
+                ],
+              ),
+            ),
+            if (!_hasSession)
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFF8C8278), size: 20),
           ],
         ),
       ),

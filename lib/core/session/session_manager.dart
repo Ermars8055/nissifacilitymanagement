@@ -13,6 +13,7 @@ class SessionManager {
 
   bool get isLoggedIn => currentUser != null && firebaseUser != null;
 
+  String? get currentUserId => currentUser?['id'] as String?;
   String get currentRole => currentUser?['role'] as String? ?? '';
   bool get isAdmin => currentRole == 'Admin' || currentRole == 'Super Admin';
 

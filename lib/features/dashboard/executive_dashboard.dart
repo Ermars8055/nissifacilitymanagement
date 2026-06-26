@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/session/session_manager.dart';
 
@@ -97,8 +98,9 @@ class _ExecutiveDashboardState extends State<ExecutiveDashboard> {
                     children: [
                       // Top bar
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(22, 18, 18, 0),
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Container(
                               width: 38,
@@ -109,10 +111,11 @@ class _ExecutiveDashboardState extends State<ExecutiveDashboard> {
                               ),
                               child: const Icon(Icons.business_rounded, color: Colors.white, size: 20),
                             ),
-                            const SizedBox(width: 11),
-                            Flexible(
+                            const SizedBox(width: 10),
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   const Text('FacilityPro', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15), overflow: TextOverflow.ellipsis),
                                   Text(buildingName, style: const TextStyle(color: Color(0xFFB8D4C4), fontSize: 12), overflow: TextOverflow.ellipsis),
@@ -120,36 +123,48 @@ class _ExecutiveDashboardState extends State<ExecutiveDashboard> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Stack(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 26),
-                                  onPressed: () {},
-                                ),
-                                Positioned(
-                                  right: 8,
-                                  top: 8,
-                                  child: Container(
-                                    width: 9,
-                                    height: 9,
-                                    decoration: const BoxDecoration(color: Color(0xFFF5C842), shape: BoxShape.circle),
+                            GestureDetector(
+                              onTap: () => context.push('/notifications'),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(Icons.notifications_outlined, color: Colors.white, size: 21),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 2),
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.5),
+                                  Positioned(
+                                    right: 6,
+                                    top: 6,
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(color: Color(0xFFF5C842), shape: BoxShape.circle),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              child: Center(
-                                child: Text(
-                                  _avatarInitials(),
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () => context.push('/settings'),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2D6B4F),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _avatarInitials(),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
                                 ),
                               ),
                             ),

@@ -3,6 +3,7 @@ using System;
 using FacilityPro.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FacilityPro.Infrastructure.Migrations
 {
     [DbContext(typeof(FacilityDbContext))]
-    partial class FacilityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260626052651_AddAntiSpoofing")]
+    partial class AddAntiSpoofing
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");

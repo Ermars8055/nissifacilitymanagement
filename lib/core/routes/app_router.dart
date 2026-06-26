@@ -82,7 +82,7 @@ class AppRouter {
       ),
       GoRoute(
         path: '/admin-dashboard',
-        builder: (BuildContext context, GoRouterState state) => const AdminDashboardScreen(),
+        redirect: (_, __) => '/dashboard',
       ),
       GoRoute(
         path: '/clients',

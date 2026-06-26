@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
+import '../../core/session/session_manager.dart';
 import '../qr/qr_scanner_screen.dart';
 
 class TaskDetailsScreen extends StatefulWidget {
@@ -11,14 +12,48 @@ class TaskDetailsScreen extends StatefulWidget {
   State<TaskDetailsScreen> createState() => _TaskDetailsScreenState();
 }
 
-class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
+class _TaskDetailsScreenState extends State<TaskDetailsScreen>
+    with WidgetsBindingObserver {
   Map<String, dynamic>? task;
   bool isLoading = true;
+
+  // App background tracking
+  DateTime? _leftAppAt;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchTask();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final status = task?['status'] as String? ?? '';
+    if (status != 'In Progress') return; // only track during active tasks
+
+    if (state == AppLifecycleState.paused) {
+      _leftAppAt = DateTime.now();
+      _logEvent('left_app', 0);
+    } else if (state == AppLifecycleState.resumed && _leftAppAt != null) {
+      final seconds = DateTime.now().difference(_leftAppAt!).inSeconds;
+      _leftAppAt = null;
+      _logEvent('returned', seconds);
+    }
+  }
+
+  void _logEvent(String eventType, int awaySeconds) {
+    ApiClient.post('/Tasks/${widget.taskId}/events', {
+      'eventType': eventType,
+      'awaySeconds': awaySeconds,
+      'timestamp': DateTime.now().toIso8601String(),
+    }).catchError((_) {});
   }
 
   Future<void> _fetchTask() async {
@@ -57,7 +92,60 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
         fullscreenDialog: true,
       ),
     );
-    if (scanned != null && mounted) {
+    if (scanned == null || !mounted) return;
+
+    // Time-of-Flight verification (non-blocking: if no session, allow through with warning)
+    final workerId = SessionManager().currentUserId;
+    if (workerId != null && workerId.isNotEmpty) {
+      try {
+        await ApiClient.post('/Sessions/verify', {
+          'workerId': workerId,
+          'entityId': task?['entityId'] ?? '',
+          'entityType': task?['entityType'] ?? 'Asset',
+          'qrCode': scanned,
+        });
+      } catch (e) {
+        final errMsg = e.toString();
+        if (errMsg.contains('tof_violation')) {
+          if (!mounted) return;
+          final allow = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(children: [
+                Icon(Icons.warning_amber_rounded, color: Color(0xFFA05A10), size: 22),
+                SizedBox(width: 8),
+                Text('Speed Warning', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              ]),
+              content: Text(
+                'Location scan flagged as too fast.\n\n$errMsg\n\nThis incident will be reported to your manager.',
+                style: const TextStyle(fontSize: 14, color: Color(0xFF4A4540), height: 1.4),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(color: Color(0xFF8C8278)))),
+                TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Continue Anyway', style: TextStyle(color: Color(0xFF9B2020), fontWeight: FontWeight.bold))),
+              ],
+            ),
+          );
+          if (allow != true) return;
+        } else if (errMsg.contains('no_session')) {
+          // No session — show advisory but don't block
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No attendance session active. Check in at the lobby first.'),
+              backgroundColor: Color(0xFFA05A10),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        // session_expired or other errors: allow through, logged server-side
+      }
+    }
+
+    if (mounted) {
       context.push('/tasks/details/${widget.taskId}/execute', extra: scanned);
     }
   }

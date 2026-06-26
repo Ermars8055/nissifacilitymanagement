@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
-import { TrendingUp, Download } from 'lucide-react'
+import { TrendingUp, Download, ShieldAlert, MapPin } from 'lucide-react'
 import api from '../api/client'
 
 const PIE_COLORS = { Critical: '#ef4444', High: '#f97316', Medium: '#3b82f6', Low: '#22c55e' }
@@ -13,6 +13,8 @@ export default function Reports() {
   const [buildings, setBuildings] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [activityData, setActivityData] = useState(null)
+  const [activityLoading, setActivityLoading] = useState(false)
 
   useEffect(() => { fetchAll() }, [])
 
@@ -29,6 +31,16 @@ export default function Reports() {
       setAssets(ar.data)
     } catch (_) {}
     setLoading(false)
+    fetchWorkerActivity()
+  }
+
+  async function fetchWorkerActivity() {
+    setActivityLoading(true)
+    try {
+      const res = await api.get('/Reports/worker-activity')
+      setActivityData(res.data)
+    } catch (_) {}
+    setActivityLoading(false)
   }
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading reports...</div>
@@ -224,6 +236,88 @@ export default function Reports() {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Worker Activity / Anti-Spoofing Report */}
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldAlert size={16} className="text-red-500" />
+            <h2 className="text-sm font-bold text-gray-700">Worker Activity & Anti-Spoofing Report</h2>
+            {activityData && activityData.flaggedTasks > 0 && (
+              <span className="badge bg-red-50 text-red-600">{activityData.flaggedTasks} flagged</span>
+            )}
+          </div>
+          <button onClick={fetchWorkerActivity} className="text-xs text-brand-600 font-semibold hover:underline">Refresh</button>
+        </div>
+
+        {activityLoading ? (
+          <div className="p-10 text-center text-gray-400 text-sm">Loading activity data...</div>
+        ) : !activityData || activityData.tasks.length === 0 ? (
+          <div className="p-10 text-center text-gray-400 text-sm">
+            No task activity events yet. Workers must have active tasks with app background tracking enabled.
+          </div>
+        ) : (
+          <div>
+            {/* Attendance sessions summary */}
+            {activityData.attendanceSessions.length > 0 && (
+              <div className="px-5 py-3 bg-blue-50/50 border-b border-blue-100">
+                <p className="text-xs font-bold text-blue-700 flex items-center gap-1.5 mb-2"><MapPin size={12} /> Attendance Sessions (Last 7 Days)</p>
+                <div className="space-y-1.5">
+                  {activityData.attendanceSessions.slice(0, 5).map(s => (
+                    <div key={s.id} className="flex items-center justify-between text-xs text-blue-800">
+                      <span>Worker {s.workerId.slice(0, 8)}… — {new Date(s.startedAt).toLocaleString()}</span>
+                      <span className="font-semibold">{s.distanceFromBuilding ? `${s.distanceFromBuilding.toFixed(0)}m from entrance` : 'Distance N/A'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  {['Task','Worker','Scheduled','Status','Away Time','App Switches','Flag'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {activityData.tasks.map(t => {
+                  const awayMin = Math.floor(t.totalAwaySeconds / 60)
+                  const awaySec = t.totalAwaySeconds % 60
+                  return (
+                    <tr key={t.taskId} className={t.flagged ? 'bg-red-50/40' : 'hover:bg-gray-50'}>
+                      <td className="px-4 py-3 font-semibold text-gray-800 max-w-48 truncate">{t.taskTitle}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{t.workerName || t.workerId?.slice(0,8)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{new Date(t.scheduledTime).toLocaleDateString()}</td>
+                      <td className="px-4 py-3">
+                        <span className={`badge text-xs ${t.status === 'Completed' ? 'bg-green-50 text-green-700' : t.status === 'In Progress' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {t.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-mono">
+                        {t.totalAwaySeconds > 0
+                          ? <span className={t.totalAwaySeconds > 300 ? 'text-red-600 font-bold' : 'text-gray-600'}>{awayMin}m {awaySec}s</span>
+                          : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-center">
+                        {t.switchCount > 0
+                          ? <span className={t.switchCount > 3 ? 'text-red-600 font-bold' : 'text-gray-600'}>{t.switchCount}×</span>
+                          : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {t.flagged
+                          ? <span className="badge bg-red-100 text-red-700 font-bold">⚠ Flagged</span>
+                          : <span className="text-green-500 text-xs">✓ OK</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

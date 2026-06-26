@@ -9,14 +9,37 @@ const HEALTH_COLOR = v => {
 }
 
 function EditModal({ building, clients, onClose, onSaved }) {
-  const [form, setForm] = useState({ name: building.name, location: building.location })
+  const [form, setForm] = useState({
+    name: building.name,
+    location: building.location,
+    targetLat: building.targetLat ?? '',
+    targetLng: building.targetLng ?? '',
+    lobbyQrCode: building.lobbyQrCode ?? '',
+  })
   const [saving, setSaving] = useState(false)
+  const [geoStatus, setGeoStatus] = useState('')
+
+  function captureGps() {
+    setGeoStatus('Getting GPS...')
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setForm(f => ({ ...f, targetLat: pos.coords.latitude.toFixed(7), targetLng: pos.coords.longitude.toFixed(7) }))
+        setGeoStatus(`Captured: ${pos.coords.accuracy.toFixed(0)}m accuracy`)
+      },
+      err => setGeoStatus('GPS failed: ' + err.message),
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
 
   async function save(e) {
     e.preventDefault()
     setSaving(true)
     try {
-      await api.put(`/Hierarchy/buildings/${building.id}`, form)
+      await api.put(`/Hierarchy/buildings/${building.id}`, {
+        ...form,
+        targetLat: form.targetLat !== '' ? parseFloat(form.targetLat) : null,
+        targetLng: form.targetLng !== '' ? parseFloat(form.targetLng) : null,
+      })
       onSaved()
       onClose()
     } catch (_) {}
@@ -25,7 +48,7 @@ function EditModal({ building, clients, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-gray-900">Edit Building</h2>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
@@ -39,6 +62,36 @@ function EditModal({ building, clients, onClose, onSaved }) {
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Location *</label>
             <input required className="input" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
           </div>
+
+          {/* Geofencing anchor */}
+          <div className="border border-brand-100 rounded-xl p-4 bg-brand-50/40 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-brand-900">GPS Geofence Anchor</p>
+                <p className="text-xs text-gray-500 mt-0.5">Workers must be within 40m of these coordinates to check in</p>
+              </div>
+              <button type="button" onClick={captureGps} className="text-xs bg-brand-700 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-brand-800">
+                📍 Use My GPS
+              </button>
+            </div>
+            {geoStatus && <p className="text-xs text-brand-700 font-medium">{geoStatus}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 block mb-1">Latitude</label>
+                <input type="number" step="any" className="input text-sm" placeholder="e.g. 40.7128" value={form.targetLat} onChange={e => setForm(f => ({ ...f, targetLat: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 block mb-1">Longitude</label>
+                <input type="number" step="any" className="input text-sm" placeholder="e.g. -74.0060" value={form.targetLng} onChange={e => setForm(f => ({ ...f, targetLng: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 block mb-1">Lobby QR Code</label>
+              <input className="input text-sm font-mono" placeholder="e.g. QR-LOBBY-TOWER1" value={form.lobbyQrCode} onChange={e => setForm(f => ({ ...f, lobbyQrCode: e.target.value }))} />
+              <p className="text-xs text-gray-400 mt-1">Workers scan this QR at the building entrance to start their shift</p>
+            </div>
+          </div>
+
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Save Changes'}</button>
@@ -215,7 +268,14 @@ export default function Buildings() {
                     </div>
                   </div>
                   <div className="mt-3 pt-3 border-t border-gray-50 flex justify-between items-center">
-                    <span className="badge bg-green-50 text-green-700">Active</span>
+                    <div className="flex items-center gap-2">
+                      <span className="badge bg-green-50 text-green-700">Active</span>
+                      {b.targetLat ? (
+                        <span className="badge bg-blue-50 text-blue-700 text-[10px]">📍 Geo-locked</span>
+                      ) : (
+                        <span className="badge bg-gray-50 text-gray-400 text-[10px]">No GPS anchor</span>
+                      )}
+                    </div>
                     <span
                       onClick={() => navigate(`/buildings/${b.id}`)}
                       className="text-xs text-brand-600 font-semibold group-hover:underline cursor-pointer"
@@ -223,6 +283,7 @@ export default function Buildings() {
                       Manage →
                     </span>
                   </div>
+
                 </div>
               </div>
             )

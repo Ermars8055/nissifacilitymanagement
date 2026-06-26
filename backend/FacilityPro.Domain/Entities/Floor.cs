@@ -6,7 +6,8 @@ public class Floor
     public string BuildingId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string QrCode { get; set; } = string.Empty;
-    
+    public int FloorNumber { get; set; } = 0; // 0 = Ground/Lobby, 1 = Floor 1, etc.
+
     // Navigation
     public Building? Building { get; set; }
     public ICollection<Room> Rooms { get; set; } = new List<Room>();

@@ -128,24 +128,6 @@ class _AssetListScreenState extends State<AssetListScreen> {
                         child: const Icon(Icons.devices_other_rounded, color: Colors.white, size: 22),
                       ),
                       const Spacer(),
-                      GestureDetector(
-                        onTap: () {},
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E3D2F),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                              SizedBox(width: 6),
-                              Text('New Asset', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                            ],
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 18),

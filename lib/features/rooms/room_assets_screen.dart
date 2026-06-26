@@ -18,7 +18,9 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
   List<dynamic> assets = [];
   List<dynamic> subCategories = [];
   Map<String, String> parentNames = {};
+  Map<String, List<dynamic>> groupedCategories = {};
   bool isLoading = true;
+  String? roomName;
 
   @override
   void initState() {
@@ -49,10 +51,17 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
         pNames[p['id'].toString()] = p['name'].toString();
       }
 
+      final grouped = <String, List<dynamic>>{};
+      for (final cat in subs) {
+        final pId = cat['parentCategoryId']?.toString() ?? 'Other';
+        grouped.putIfAbsent(pId, () => []).add(cat);
+      }
+
       setState(() {
         assets = assetsData;
         subCategories = subs;
         parentNames = pNames;
+        groupedCategories = grouped;
         isLoading = false;
       });
     } catch (e) {
@@ -63,8 +72,8 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
 
   Future<void> _fetchAssetsSilently() async {
     try {
-      final assetsData = await ApiClient.get('/Assets/room/${widget.roomId}');
-      if (mounted) setState(() => assets = assetsData);
+      final data = await ApiClient.get('/Assets/room/${widget.roomId}');
+      if (mounted) setState(() => assets = data);
     } catch (_) {}
   }
 
@@ -74,7 +83,7 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
     final newNumber = existingCount + 1;
     final uniqueId = '$catName-${newNumber.toString().padLeft(3, '0')}';
 
-    final apiPayload = {
+    final payload = {
       'buildingId': widget.buildingId,
       'roomId': widget.roomId,
       'categoryId': category['id'],
@@ -83,23 +92,17 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
       'serialNumber': 'SN-$uniqueId',
     };
 
-    final optimisticAsset = {
-      'id': 'temp-$uniqueId',
-      ...apiPayload,
-      'category': category,
-    };
-    setState(() => assets.add(optimisticAsset));
-
+    setState(() => assets.add({'id': 'temp-$uniqueId', ...payload, 'category': category}));
     if (mounted) Future.microtask(() => _showQRDialog(uniqueId, category['name']));
 
     try {
-      await ApiClient.post('/Assets', apiPayload);
+      await ApiClient.post('/Assets', payload);
       _fetchAssetsSilently();
     } catch (e) {
       if (mounted) {
         setState(() => assets.removeWhere((a) => a['id'] == 'temp-$uniqueId'));
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e'), backgroundColor: const Color(0xFF9B2020)),
+          SnackBar(content: Text('Failed: $e'), backgroundColor: const Color(0xFF9B2020)),
         );
       }
     }
@@ -113,11 +116,8 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
         backgroundColor: Colors.white,
         contentPadding: const EdgeInsets.all(24),
         titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-        title: const Text(
-          'Asset QR Generated',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1714)),
-        ),
+        title: const Text('Asset QR Generated', textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1714))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -129,17 +129,10 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: const Color(0xFFDDD5C8), width: 2),
               ),
-              child: SizedBox(
-                width: 200,
-                height: 200,
-                child: QrImageView(data: qrData, version: QrVersions.auto, size: 200),
-              ),
+              child: QrImageView(data: qrData, version: QrVersions.auto, size: 200),
             ),
             const SizedBox(height: 16),
-            Text(
-              qrData,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFF1A1714)),
-            ),
+            Text(qrData, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFF1A1714))),
             const SizedBox(height: 4),
             Text(categoryName, style: const TextStyle(color: Color(0xFF8C8278), fontSize: 13)),
             const SizedBox(height: 12),
@@ -159,63 +152,47 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
         ),
         actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
         actions: [
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(color: const Color(0xFFEEE8DF), borderRadius: BorderRadius.circular(14)),
-                    child: const Center(child: Text('Close', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF4A4540), fontSize: 15))),
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(color: const Color(0xFFEEE8DF), borderRadius: BorderRadius.circular(14)),
+                  child: const Center(child: Text('Close', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF4A4540), fontSize: 15))),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sending to printer...')));
+                },
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(color: const Color(0xFF1E3D2F), borderRadius: BorderRadius.circular(14)),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.print_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Text('Print QR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Sending to printer...')),
-                    );
-                  },
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(color: const Color(0xFF1E3D2F), borderRadius: BorderRadius.circular(14)),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.print_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: 8),
-                        Text('Print QR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ]),
         ],
       ),
     );
   }
 
-  Map<String, List<dynamic>> get _grouped {
-    final map = <String, List<dynamic>>{};
-    for (final cat in subCategories) {
-      final pId = cat['parentCategoryId']?.toString() ?? 'Other';
-      map.putIfAbsent(pId, () => []).add(cat);
-    }
-    return map;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final grouped = _grouped;
-    final groupKeys = grouped.keys.toList();
-
     return Scaffold(
       backgroundColor: const Color(0xFFF7F3EC),
       appBar: AppBar(
@@ -229,165 +206,245 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E3D2F)))
-          : subCategories.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No asset categories found.\nTap the seed button in the backend.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, color: Color(0xFF8C8278)),
+          : RefreshIndicator(
+              onRefresh: _fetchData,
+              color: const Color(0xFF1E3D2F),
+              child: CustomScrollView(
+                slivers: [
+                  // ── Existing Assets Section ──────────────────────────────
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
+                      child: Row(
+                        children: [
+                          const Text('ASSETS IN THIS ROOM',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF8C8278), letterSpacing: 1.2)),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: assets.isEmpty ? const Color(0xFFEEE8DF) : const Color(0xFF1E3D2F),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text('${assets.length}',
+                                style: TextStyle(
+                                  color: assets.isEmpty ? const Color(0xFF8C8278) : Colors.white,
+                                  fontWeight: FontWeight.bold, fontSize: 12,
+                                )),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
-                  itemCount: groupKeys.length,
-                  itemBuilder: (context, gi) {
-                    final pId = groupKeys[gi];
-                    final groupLabel = parentNames[pId] ?? 'Other';
-                    final cats = grouped[pId]!;
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 8, left: 4),
-                          child: Text(
-                            groupLabel.toUpperCase(),
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF8C8278), letterSpacing: 1.2),
-                          ),
-                        ),
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [BoxShadow(color: const Color(0xFF1A1714).withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4))],
-                          ),
-                          child: Material(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            clipBehavior: Clip.antiAlias,
-                            child: Column(
-                              children: cats.asMap().entries.map((entry) {
-                                final i = entry.key;
-                                final cat = entry.value;
-                                final catAssets = assets.where((a) => a['categoryId'] == cat['id']).toList();
-                                final count = catAssets.length;
-                                final isLast = i == cats.length - 1;
-
-                                return Column(
+                  if (assets.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(18, 12, 18, 0),
+                        child: _EmptyAssetsCard(),
+                      ),
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) {
+                          final a = assets[i];
+                          return Padding(
+                            padding: EdgeInsets.fromLTRB(18, i == 0 ? 12 : 6, 18, 0),
+                            child: Dismissible(
+                              key: Key(a['id'].toString()),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF9B2020),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Theme(
-                                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                                      child: ExpansionTile(
-                                        key: PageStorageKey(cat['id'].toString()),
-                                        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                        childrenPadding: EdgeInsets.zero,
-                                        leading: Container(
-                                          width: 42,
-                                          height: 42,
-                                          decoration: BoxDecoration(
-                                            color: count > 0 ? const Color(0xFFEBF2ED) : const Color(0xFFEEE8DF),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Icon(
-                                            _iconForCategory(cat['name']),
-                                            size: 20,
-                                            color: count > 0 ? const Color(0xFF1E3D2F) : const Color(0xFF8C8278),
-                                          ),
-                                        ),
-                                        title: Text(
-                                          cat['name'],
-                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF1A1714)),
-                                        ),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
+                                    Icon(Icons.delete_rounded, color: Colors.white, size: 22),
+                                    SizedBox(height: 4),
+                                    Text('Delete', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                              ),
+                              confirmDismiss: (_) async {
+                                return await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                    backgroundColor: Colors.white,
+                                    title: const Text('Delete Asset', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
+                                    content: Text('Delete "${a['name']}"? This cannot be undone.', style: const TextStyle(color: Color(0xFF4A4540))),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: Color(0xFF8C8278)))),
+                                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Color(0xFF9B2020), fontWeight: FontWeight.bold))),
+                                    ],
+                                  ),
+                                ) ?? false;
+                              },
+                              onDismissed: (_) async {
+                                final id = a['id'].toString();
+                                setState(() => assets.removeWhere((x) => x['id'].toString() == id));
+                                try {
+                                  await ApiClient.delete('/Assets/$id');
+                                } catch (e) {
+                                  _fetchAssetsSilently();
+                                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Failed: $e'), backgroundColor: const Color(0xFF9B2020)),
+                                  );
+                                }
+                              },
+                              child: GestureDetector(
+                                onTap: () => context.push('/assets/details/${a['id']}'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [BoxShadow(color: const Color(0xFF1A1714).withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 40, height: 40,
+                                        decoration: BoxDecoration(color: const Color(0xFFEBF2ED), borderRadius: BorderRadius.circular(11)),
+                                        child: const Icon(Icons.inventory_2_rounded, color: Color(0xFF1E3D2F), size: 20),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: count > 0 ? const Color(0xFF1E3D2F) : const Color(0xFFEEE8DF),
-                                                borderRadius: BorderRadius.circular(20),
-                                              ),
-                                              child: Text(
-                                                '$count',
-                                                style: TextStyle(
-                                                  color: count > 0 ? Colors.white : const Color(0xFF8C8278),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            const Icon(Icons.expand_more, color: Color(0xFF8C8278)),
+                                            Text(a['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1714))),
+                                            const SizedBox(height: 2),
+                                            Text(a['qrCode'] ?? '', style: const TextStyle(fontSize: 12, color: Color(0xFF8C8278), fontFamily: 'monospace')),
                                           ],
                                         ),
-                                        children: [
-                                          Container(
-                                            color: const Color(0xFFF7F3EC),
-                                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                                              children: [
-                                                const SizedBox(height: 12),
-                                                if (catAssets.isNotEmpty) ...[
-                                                  const Text(
-                                                    'ASSETS IN THIS ROOM',
-                                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF8C8278), letterSpacing: 1.2),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  ...catAssets.map((a) => Container(
-                                                    margin: const EdgeInsets.only(bottom: 6),
-                                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white,
-                                                      borderRadius: BorderRadius.circular(12),
-                                                      border: Border.all(color: const Color(0xFFDDD5C8)),
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                      children: [
-                                                        Text(a['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1A1714))),
-                                                        Text(a['qrCode'] ?? '', style: const TextStyle(fontFamily: 'monospace', color: Color(0xFF8C8278), fontSize: 12)),
-                                                      ],
-                                                    ),
-                                                  )),
-                                                  const SizedBox(height: 12),
-                                                ],
-                                                GestureDetector(
-                                                  onTap: () => _generateAssetQR(Map<String, dynamic>.from(cat)),
-                                                  child: Container(
-                                                    height: 50,
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(0xFF1E3D2F),
-                                                      borderRadius: BorderRadius.circular(14),
-                                                    ),
-                                                    child: const Row(
-                                                      mainAxisAlignment: MainAxisAlignment.center,
-                                                      children: [
-                                                        Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 20),
-                                                        SizedBox(width: 8),
-                                                        Text('Generate Asset QR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
                                       ),
-                                    ),
-                                    if (!isLast)
-                                      const Divider(height: 1, indent: 16, endIndent: 16, color: Color(0xFFEEE8DF)),
-                                  ],
-                                );
-                              }).toList(),
+                                      const Icon(Icons.chevron_right_rounded, color: Color(0xFFDDD5C8)),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          );
+                        },
+                        childCount: assets.length,
+                      ),
+                    ),
+
+                  // ── Add New Asset Section ────────────────────────────────
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(18, 28, 18, 10),
+                      child: Row(
+                        children: [
+                          Icon(Icons.add_box_rounded, color: Color(0xFF1E3D2F), size: 18),
+                          SizedBox(width: 8),
+                          Text('ADD NEW ASSET',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1E3D2F), letterSpacing: 1.2)),
+                          SizedBox(width: 6),
+                          Text('— tap a category', style: TextStyle(fontSize: 11, color: Color(0xFF8C8278))),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  if (subCategories.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(18, 0, 18, 40),
+                        child: Center(
+                          child: Text('No categories found.\nRun seed-categories from backend.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Color(0xFF8C8278), fontSize: 14)),
                         ),
-                      ],
-                    );
-                  },
-                ),
+                      ),
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, gi) {
+                          final groupKey = groupedCategories.keys.toList()[gi];
+                          final groupLabel = parentNames[groupKey] ?? 'Other';
+                          final cats = groupedCategories[groupKey]!;
+
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                                  child: Text(groupLabel.toUpperCase(),
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF8C8278), letterSpacing: 1.2)),
+                                ),
+                                GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    crossAxisSpacing: 10,
+                                    mainAxisSpacing: 10,
+                                    childAspectRatio: 1.0,
+                                  ),
+                                  itemCount: cats.length,
+                                  itemBuilder: (context, ci) {
+                                    final cat = cats[ci];
+                                    final count = assets.where((a) => a['categoryId'] == cat['id']).length;
+                                    return GestureDetector(
+                                      onTap: () => _generateAssetQR(Map<String, dynamic>.from(cat)),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: const Color(0xFFEEE8DF), width: 1.5),
+                                          boxShadow: [BoxShadow(color: const Color(0xFF1A1714).withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
+                                        ),
+                                        padding: const EdgeInsets.all(10),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              width: 38, height: 38,
+                                              decoration: BoxDecoration(
+                                                color: count > 0 ? const Color(0xFFEBF2ED) : const Color(0xFFEEE8DF),
+                                                borderRadius: BorderRadius.circular(11),
+                                              ),
+                                              child: Icon(_iconForCategory(cat['name']), size: 20,
+                                                  color: count > 0 ? const Color(0xFF1E3D2F) : const Color(0xFF8C8278)),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(cat['name'] ?? '',
+                                                textAlign: TextAlign.center,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF1A1714))),
+                                            if (count > 0) ...[
+                                              const SizedBox(height: 3),
+                                              Text('$count added', style: const TextStyle(fontSize: 9, color: Color(0xFF2D6B4F), fontWeight: FontWeight.bold)),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        childCount: groupedCategories.length,
+                      ),
+                    ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                ],
+              ),
+            ),
     );
   }
 
@@ -416,5 +473,27 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
     if (n.contains('cabinet') || n.contains('shelf') || n.contains('bookshelf')) return Icons.inventory_2_rounded;
     if (n.contains('security') || n.contains('access')) return Icons.security_rounded;
     return Icons.category_rounded;
+  }
+}
+
+class _EmptyAssetsCard extends StatelessWidget {
+  const _EmptyAssetsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEE8DF),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.inbox_rounded, color: Color(0xFF8C8278), size: 20),
+          SizedBox(width: 10),
+          Text('No assets yet — add one below', style: TextStyle(color: Color(0xFF8C8278), fontSize: 14)),
+        ],
+      ),
+    );
   }
 }

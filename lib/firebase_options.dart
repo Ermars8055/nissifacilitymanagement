@@ -14,10 +14,7 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'Android is not configured yet. Register an Android app in the '
-          'Firebase console and run: flutterfire configure',
-        );
+        return android;
       case TargetPlatform.iOS:
         throw UnsupportedError(
           'iOS is not configured yet. Register an iOS app in the '
@@ -33,6 +30,14 @@ class DefaultFirebaseOptions {
         );
     }
   }
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyAbZHBDTld7MPG6bBdXmSVuBCkDfo010cM',
+    appId: '1:1021610120973:android:3b085120a4c68cfab90244',
+    messagingSenderId: '1021610120973',
+    projectId: 'facilitypro-3f693',
+    storageBucket: 'facilitypro-3f693.firebasestorage.app',
+  );
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyDivkXjJ-4Urn-2hephYWU_dWHOrK20Q78',

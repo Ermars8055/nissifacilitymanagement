@@ -121,6 +121,9 @@ public class HierarchyController : ControllerBase
         if (building == null) return NotFound();
         building.Name = updated.Name;
         building.Location = updated.Location;
+        if (updated.TargetLat.HasValue) building.TargetLat = updated.TargetLat;
+        if (updated.TargetLng.HasValue) building.TargetLng = updated.TargetLng;
+        if (!string.IsNullOrEmpty(updated.LobbyQrCode)) building.LobbyQrCode = updated.LobbyQrCode;
         await _context.SaveChangesAsync();
         return Ok(building);
     }
