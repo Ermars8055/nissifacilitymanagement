@@ -203,6 +203,14 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
           onPressed: () => context.pop(),
         ),
         title: const Text('Room Assets', style: TextStyle(color: Color(0xFF1A1714), fontWeight: FontWeight.bold, fontSize: 18)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.map_rounded, color: Color(0xFF1E3D2F)),
+            onPressed: () => context.push('/mapping/room-visual-map/${widget.roomId}'),
+            tooltip: 'Visual Map',
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E3D2F)))

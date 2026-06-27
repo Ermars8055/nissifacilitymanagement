@@ -36,6 +36,8 @@ import '../../features/users/user_list_screen.dart';
 import '../../features/notifications/notification_center_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/mapping/hierarchy_builder_screen.dart';
+import '../../features/mapping/floor_plan_editor_screen.dart';
+import '../../features/rooms/room_visual_map_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final GlobalKey<NavigatorState> _shellNavigatorDashboardKey = GlobalKey<NavigatorState>(debugLabel: 'shellDashboard');
@@ -236,6 +238,14 @@ class AppRouter {
       GoRoute(path: '/notifications', builder: (context, state) => const NotificationCenterScreen()),
       GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
       GoRoute(path: '/hierarchy-builder', builder: (context, state) => const HierarchyBuilderScreen()),
+      GoRoute(
+        path: '/mapping/floor-plan-editor/:floorId',
+        builder: (context, state) => FloorPlanEditorScreen(floorId: state.pathParameters['floorId']!),
+      ),
+      GoRoute(
+        path: '/mapping/room-visual-map/:roomId',
+        builder: (context, state) => RoomVisualMapScreen(roomId: state.pathParameters['roomId']!),
+      ),
     ],
   );
 }

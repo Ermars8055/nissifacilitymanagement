@@ -112,6 +112,19 @@ public class AssetsController : ControllerBase
         return Ok(assets);
     }
 
+    [HttpPut("{id}/position")]
+    public async Task<IActionResult> UpdateAssetPosition(string id, [FromBody] AssetPositionDto dto)
+    {
+        var asset = await _context.Assets.FindAsync(id);
+        if (asset == null) return NotFound();
+
+        asset.AssetPosX = dto.AssetPosX;
+        asset.AssetPosY = dto.AssetPosY;
+
+        await _context.SaveChangesAsync();
+        return Ok(asset);
+    }
+
     [AllowAnonymous]
     [HttpPost("seed")]
     public async Task<IActionResult> SeedAssets()
@@ -206,4 +219,10 @@ public class AssetsController : ControllerBase
 
         return Ok($"Seeded {added} categories in hierarchy.");
     }
+}
+
+public class AssetPositionDto
+{
+    public double? AssetPosX { get; set; }
+    public double? AssetPosY { get; set; }
 }

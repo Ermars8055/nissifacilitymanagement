@@ -14,6 +14,10 @@ public class Asset
     public string Status { get; set; } = "Active"; // Active, Under Maintenance, Decommissioned
     public DateTime InstallDate { get; set; } = DateTime.UtcNow;
 
+    // Spatial Mapping Fields
+    public double? AssetPosX { get; set; }      // position within room
+    public double? AssetPosY { get; set; }
+
     // Navigation
     public AssetCategory? Category { get; set; }
     public Building? Building { get; set; }

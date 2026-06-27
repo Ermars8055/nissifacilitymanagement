@@ -4,27 +4,33 @@ import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../network/api_client.dart';
 
 class UpdateService {
   static Future<void> checkForUpdate(BuildContext context) async {
-    if (!Platform.isAndroid) return; // APK updates only on Android
+    if (!Platform.isAndroid) return;
 
     try {
       final info = await PackageInfo.fromPlatform();
-      final current = info.version; // e.g. "1.0.0"
+      final current = info.version;
 
       final data = await ApiClient.get('/Version/latest') as Map<String, dynamic>;
       final latest = data['version'] as String;
       final apkUrl = data['apkUrl'] as String;
       final notes = data['releaseNotes'] as String? ?? '';
 
-      if (_isNewer(latest, current) && context.mounted) {
+      if (!_isNewer(latest, current)) return;
+
+      // Don't show again if user already dismissed this version
+      final prefs = await SharedPreferences.getInstance();
+      final dismissed = prefs.getString('dismissed_version');
+      if (dismissed == latest) return;
+
+      if (context.mounted) {
         _showUpdateDialog(context, latest, apkUrl, notes);
       }
-    } catch (_) {
-      // Silent fail — never block the user because of an update check
-    }
+    } catch (_) {}
   }
 
   static bool _isNewer(String latest, String current) {
@@ -133,7 +139,11 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               children: [
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setString('dismissed_version', widget.version);
+                      if (context.mounted) Navigator.of(context).pop();
+                    },
                     child: const Text('Later', style: TextStyle(color: Color(0xFF8C8278))),
                   ),
                 ),

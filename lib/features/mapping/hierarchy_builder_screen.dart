@@ -316,6 +316,20 @@ class _HierarchyBuilderScreenState extends State<HierarchyBuilderScreen> {
                     side: const BorderSide(color: Color(0xFF2563EB)),
                   ),
                 ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    context.push('/mapping/floor-plan-editor/${floor['id']}');
+                  },
+                  icon: const Icon(Icons.map_rounded, size: 14),
+                  label: const Text('Edit Floor Plan'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 36),
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                  ),
+                ),
               ],
             ),
           ),

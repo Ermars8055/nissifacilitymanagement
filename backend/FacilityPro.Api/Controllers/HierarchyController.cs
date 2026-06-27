@@ -158,6 +158,34 @@ public class HierarchyController : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("rooms/{id}/position")]
+    public async Task<IActionResult> UpdateRoomPosition(string id, [FromBody] RoomPositionDto dto)
+    {
+        var room = await _context.Rooms.FindAsync(id);
+        if (room == null) return NotFound();
+        
+        room.PosX = dto.PosX;
+        room.PosY = dto.PosY;
+        room.Width = dto.Width;
+        room.Height = dto.Height;
+        if (dto.Color != null) room.Color = dto.Color;
+        
+        await _context.SaveChangesAsync();
+        return Ok(room);
+    }
+
+    [HttpGet("floors/{id}/floorplan")]
+    public async Task<IActionResult> GetFloorPlan(string id)
+    {
+        var floor = await _context.Floors
+            .Include(f => f.Rooms)
+            .FirstOrDefaultAsync(f => f.Id == id);
+            
+        if (floor == null) return NotFound();
+        
+        return Ok(floor);
+    }
+
     [HttpGet("all-buildings")]
     public async Task<IActionResult> GetAllBuildings()
     {
@@ -203,4 +231,13 @@ public class HierarchyController : ControllerBase
         await _context.SaveChangesAsync();
         return Ok("Seeded successfully");
     }
+}
+
+public class RoomPositionDto
+{
+    public double PosX { get; set; }
+    public double PosY { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public string? Color { get; set; }
 }
