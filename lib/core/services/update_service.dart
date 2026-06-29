@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -9,6 +10,7 @@ import '../network/api_client.dart';
 
 class UpdateService {
   static Future<void> checkForUpdate(BuildContext context) async {
+    if (kIsWeb) return;
     if (!Platform.isAndroid) return;
 
     try {

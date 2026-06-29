@@ -159,6 +159,9 @@ class _FloorPlanEditorScreenState extends State<FloorPlanEditorScreen> {
                           onPanEnd: (details) {
                             _updateRoomPosition(room['id'], room['posX'], room['posY'], w, h);
                           },
+                          onDoubleTap: () {
+                            context.push('/mapping/room-visual-map/${room['id']}');
+                          },
                           child: Container(
                             width: w,
                             height: h,
@@ -195,10 +198,12 @@ class _FloorPlanEditorScreenState extends State<FloorPlanEditorScreen> {
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
-                                      '${(room['assets'] as List?)?.length ?? 0}',
+                                      '${(room['assets'] as List?)?.length ?? 0} Assets',
                                       style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                                     ),
-                                  )
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text('Double-tap to open', style: TextStyle(color: Color(0xFF166534), fontSize: 9)),
                                 ],
                               ),
                             ),

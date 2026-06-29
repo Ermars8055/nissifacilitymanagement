@@ -27,17 +27,29 @@ class _RoomVisualMapScreenState extends State<RoomVisualMapScreen> {
 
   Future<void> _fetchRoomData() async {
     try {
-      // In a real scenario, we might want to fetch room details to get width/height
-      // For now, we just fetch assets
-      final data = await ApiClient.get('/Assets/room/${widget.roomId}');
+      // 1. Fetch room details (for width, height, and name)
+      final roomData = await ApiClient.get('/Hierarchy/rooms/single/${widget.roomId}');
+      
+      // 2. Fetch assets inside the room
+      final assetData = await ApiClient.get('/Assets/room/${widget.roomId}');
+      
       setState(() {
-        assets = data;
+        room = roomData;
+        assets = assetData;
+        
+        // Dynamically size the room canvas based on real dimensions
+        roomWidth = (roomData['width'] as num?)?.toDouble() ?? 400.0;
+        roomHeight = (roomData['height'] as num?)?.toDouble() ?? 300.0;
+        
+        if (roomWidth == 0) roomWidth = 400;
+        if (roomHeight == 0) roomHeight = 300;
+
         isLoading = false;
       });
     } catch (e) {
       setState(() => isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load assets: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load room data: $e')));
       }
     }
   }
@@ -93,16 +105,19 @@ class _RoomVisualMapScreenState extends State<RoomVisualMapScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  context.pop();
-                  context.push('/assets/details/${asset['id']}');
-                },
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                  backgroundColor: const Color(0xFF1E3D2F),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    context.pop();
+                    context.push('/assets/details/${asset['id']}');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3D2F),
+                  ),
+                  child: const Text('View Full Details', style: TextStyle(color: Colors.white)),
                 ),
-                child: const Text('View Full Details', style: TextStyle(color: Colors.white)),
               )
             ],
           ),
@@ -124,7 +139,7 @@ class _RoomVisualMapScreenState extends State<RoomVisualMapScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Room Visual Map', style: TextStyle(color: Colors.black)),
+        title: Text(room != null ? '${room!['name']} - Interior' : 'Room Visual Map', style: const TextStyle(color: Colors.black)),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(

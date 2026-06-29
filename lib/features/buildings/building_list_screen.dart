@@ -201,10 +201,9 @@ class _BuildingListScreenState extends State<BuildingListScreen> {
                           color: const Color(0xFF1E3D2F),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
-                          onPressed: () {},
+                        child: GestureDetector(
+                          onTap: () {},
+                          child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
                         ),
                       ),
                     ],
