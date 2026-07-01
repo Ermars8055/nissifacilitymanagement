@@ -40,10 +40,13 @@
         }
         .fchip {
             background: rgba(255,255,255,0.85); border: 1px solid #e2e8f0;
-            border-radius: 6px; padding: 5px 12px;
+            border-radius: 6px; padding: 5px 12px; cursor: pointer;
             font-size: 11px; color: #64748b; font-weight: 600;
-            pointer-events: none; user-select: none;
+            user-select: none; pointer-events: auto;
+            transition: all 0.2s;
         }
+        .fchip:hover { background: #f1f5f9; color: #334155; }
+        .fchip.active { background: #2D6B4F; border-color: #10b981; color: white; }
     </style>
     <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
     <script type="importmap">
@@ -55,13 +58,17 @@
     <div id="hint">Scroll to zoom · Left-drag to orbit · Drag coloured asset to move</div>
     <div id="toolbar">
         <button id="btn-stack" class="active">Stacked</button>
-        <button id="btn-explode">Explode</button>
+        <button id="btn-explode">Exploded</button>
+        <button id="btn-vertical" style="margin-left: 10px;">↕️ Vertical Drag</button>
     </div>
     <div id="floor-legend"></div>
 
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+window.gltfLoader = new GLTFLoader();
 
 // ───────────────────────────────────────────────────────────
 // CONSTANTS  (floor plan canvas = 800×600 Flutter pixels)
@@ -304,23 +311,96 @@ function buildCylinder(color) {
 
 function buildAsset(id, name, meta) {
     const n = name.toLowerCase(); const color = assetColor(name);
-    let g;
-    if (n.includes('chair'))                            g = buildChair(color);
-    else if (n.includes('table')||n.includes('desk'))   g = buildTable(color);
-    else if (n.includes('extinguisher'))                g = buildCylinder(color);
-    else                                                g = buildBox(color);
-
+    let g = new THREE.Group();
     g.userData = { id, name, floorId: meta.floorId, meta };
-    g.traverse(c => {
-        if (c.isMesh) {
-            c.castShadow = true; c.receiveShadow = true;
-            c.userData = { ...g.userData, assetRoot: g };
-        }
-    });
+
+    let modelUrl = null;
+    let modelScale = 1;
+    if (n.includes('air') || n.includes('ac ') || n.includes('conditioner') || n.includes('hvac')) {
+        modelUrl = '../models/air_con.glb';
+        modelScale = 0.5;
+    } else if (n.includes('panel') || n.includes('electrical') || n.includes('transformer')) {
+        modelUrl = '../models/industrial_electrical_and_panel_assembly_asset.glb';
+        modelScale = 0.5;
+    } else if (n.includes('extinguisher') || n.includes('fire ext')) {
+        modelUrl = '../models/uploads_files_2406338_FireExtinguisher.gltf';
+        modelScale = 0.5;
+    } else if (n.includes('alarm') || n.includes('smoke')) {
+        modelUrl = '../models/siemens_fire_alarm_low_poly.glb';
+        modelScale = 0.5;
+    } else if (n.includes('desk') || n.includes('pc')) {
+        modelUrl = '../models/desk_and_pc.glb';
+        modelScale = 0.5;
+    }
+
+    if (modelUrl) {
+        // Temp placeholder
+        const placeholder = buildBox(color);
+        g.add(placeholder);
+
+        window.gltfLoader.load(modelUrl, (gltf) => {
+            g.remove(placeholder);
+            const model = gltf.scene;
+            
+            // Auto-center and place on floor
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            
+            // Normalize scale so the longest side is ~1.5 meters
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const s = 1.5 / maxDim;
+            model.scale.set(s, s, s);
+            
+            // Adjust position so origin is bottom center
+            model.position.set(-center.x * s, -box.min.y * s, -center.z * s);
+
+            const wrapper = new THREE.Group();
+            wrapper.add(model);
+            g.add(wrapper);
+
+            wrapper.traverse(c => {
+                if (c.isMesh) {
+                    c.castShadow = true; c.receiveShadow = true;
+                    c.userData = { ...g.userData, assetRoot: g };
+                    dragTargets.push(c);
+                }
+            });
+        }, undefined, (e) => console.error(e));
+    } else {
+        let prim;
+        if (n.includes('chair'))                            prim = buildChair(color);
+        else if (n.includes('table')||n.includes('desk'))   prim = buildTable(color);
+        else if (n.includes('extinguisher'))                prim = buildCylinder(color);
+        else                                                prim = buildBox(color);
+        
+        g.add(prim);
+        prim.traverse(c => {
+            if (c.isMesh) {
+                c.castShadow = true; c.receiveShadow = true;
+                c.userData = { ...g.userData, assetRoot: g };
+                dragTargets.push(c);
+            }
+        });
+    }
 
     meta.group.add(g);
-    g.children.filter(c => c.isMesh).forEach(c => dragTargets.push(c));
     return g;
+}
+
+let isolatedFloorIdx = -1;
+
+function toggleIsolation(idx, chipElement) {
+    if (isolatedFloorIdx === idx) {
+        isolatedFloorIdx = -1;
+        document.querySelectorAll('.fchip').forEach(c => c.classList.remove('active'));
+        floorMeta.forEach(m => m.group.visible = true);
+    } else {
+        isolatedFloorIdx = idx;
+        document.querySelectorAll('.fchip').forEach(c => c.classList.remove('active'));
+        chipElement.classList.add('active');
+        floorMeta.forEach((m, i) => m.group.visible = (i === idx));
+    }
 }
 
 // ───────────────────────────────────────────────────────────
@@ -331,6 +411,7 @@ function loadBuilding(data) {
     floorMeta.forEach(m => scene.remove(m.group));
     floorMeta.length = 0;
     dragTargets.length = 0;
+    isolatedFloorIdx = -1;
     document.getElementById('floor-legend').innerHTML = '';
 
     const floors = data.floors || [];
@@ -343,6 +424,7 @@ function loadBuilding(data) {
         const chip = document.createElement('div');
         chip.className = 'fchip';
         chip.textContent = floor.name || `Floor ${meta.level}`;
+        chip.onclick = () => toggleIsolation(idx, chip);
         document.getElementById('floor-legend').prepend(chip);
     });
 
@@ -362,13 +444,31 @@ const iPoint     = new THREE.Vector3();
 const dragOffset = new THREE.Vector3();
 let dragged = null;
 
+let verticalDragMode = false;
+document.getElementById('btn-vertical').addEventListener('click', (e) => {
+    verticalDragMode = !verticalDragMode;
+    const btn = e.target;
+    if (verticalDragMode) {
+        btn.classList.add('active');
+        btn.innerText = '↕️ Vertical: ON';
+    } else {
+        btn.classList.remove('active');
+        btn.innerText = '↕️ Vertical Drag';
+    }
+});
+
+let isVerticalDrag = false;
+
 function updateMouse(e) {
     const r = renderer.domElement.getBoundingClientRect();
     mouse.x =  ((e.clientX - r.left) / r.width ) * 2 - 1;
     mouse.y = -((e.clientY - r.top ) / r.height) * 2 + 1;
 }
 
+renderer.domElement.tabIndex = 1;
+
 renderer.domElement.addEventListener('pointerdown', e => {
+    renderer.domElement.focus();
     updateMouse(e);
     raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObjects(dragTargets, false);
@@ -381,10 +481,19 @@ renderer.domElement.addEventListener('pointerdown', e => {
     orbit.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
 
-    // Drag plane = floor surface in world space
-    const meta = root.userData.meta;
-    const worldFloorY = meta.group.position.y + meta.floorY;
-    dragPlane.set(new THREE.Vector3(0,1,0), -worldFloorY);
+    isVerticalDrag = verticalDragMode || e.shiftKey || e.button === 2;
+
+    if (isVerticalDrag) {
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        const wp = new THREE.Vector3();
+        root.getWorldPosition(wp);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), wp);
+    } else {
+        const meta = root.userData.meta;
+        const worldFloorY = meta.group.position.y + root.position.y;
+        dragPlane.set(new THREE.Vector3(0,1,0), -worldFloorY);
+    }
 
     raycaster.ray.intersectPlane(dragPlane, iPoint);
     const wp = new THREE.Vector3();
@@ -395,13 +504,44 @@ renderer.domElement.addEventListener('pointerdown', e => {
 renderer.domElement.addEventListener('pointermove', e => {
     if (!dragged) return;
     updateMouse(e);
+    
+    const wantsVertical = verticalDragMode || e.shiftKey || e.buttons === 2;
+    if (isVerticalDrag !== wantsVertical) {
+        isVerticalDrag = wantsVertical;
+        if (isVerticalDrag) {
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            const wp = new THREE.Vector3();
+            dragged.getWorldPosition(wp);
+            dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), wp);
+        } else {
+            const meta = dragged.userData.meta;
+            const worldFloorY = meta.group.position.y + dragged.position.y;
+            dragPlane.set(new THREE.Vector3(0,1,0), -worldFloorY);
+        }
+        raycaster.setFromCamera(mouse, camera);
+        raycaster.ray.intersectPlane(dragPlane, iPoint);
+        const wp = new THREE.Vector3();
+        dragged.getWorldPosition(wp);
+        dragOffset.copy(wp).sub(iPoint);
+    }
+    
     raycaster.setFromCamera(mouse, camera);
     if (!raycaster.ray.intersectPlane(dragPlane, iPoint)) return;
 
-    const lim = { x: WORLD_W/2 - 0.5, z: WORLD_D/2 - 0.5 };
-    const wx = Math.max(-lim.x, Math.min(lim.x, iPoint.x + dragOffset.x));
-    const wz = Math.max(-lim.z, Math.min(lim.z, iPoint.z + dragOffset.z));
-    dragged.position.set(wx, dragged.userData.meta.floorY, wz);
+    if (isVerticalDrag) {
+        const targetWorldY = iPoint.y + dragOffset.y;
+        const meta = dragged.userData.meta;
+        dragged.position.y = targetWorldY - meta.group.position.y;
+    } else {
+        const lim = { x: WORLD_W/2 - 0.5, z: WORLD_D/2 - 0.5 };
+        // The local position in XZ is same as world since floors don't move in XZ
+        const targetWorldX = iPoint.x + dragOffset.x;
+        const targetWorldZ = iPoint.z + dragOffset.z;
+        const wx = Math.max(-lim.x, Math.min(lim.x, targetWorldX));
+        const wz = Math.max(-lim.z, Math.min(lim.z, targetWorldZ));
+        dragged.position.set(wx, dragged.position.y, wz);
+    }
 });
 
 const onUp = () => {

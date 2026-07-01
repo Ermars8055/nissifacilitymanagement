@@ -127,11 +127,18 @@ class _Room3DEditorScreenState extends State<Room3DEditorScreen> {
         ),
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 3D Canvas (takes all available space)
           Expanded(
             child: kIsWeb && _webViewId != null
-                ? HtmlElementView(viewType: _webViewId!)
+                ? LayoutBuilder(
+                    builder: (context, constraints) => SizedBox(
+                      width: constraints.maxWidth,
+                      height: constraints.maxHeight,
+                      child: HtmlElementView(viewType: _webViewId!),
+                    ),
+                  )
                 : const Center(
                     child: Text(
                       'This 3D view is available on the Web dashboard.\nAPK build coming soon.',

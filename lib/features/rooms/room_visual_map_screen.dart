@@ -148,6 +148,7 @@ class _RoomVisualMapScreenState extends State<RoomVisualMapScreen> {
         ),
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
             padding: const EdgeInsets.all(16),

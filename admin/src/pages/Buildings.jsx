@@ -255,7 +255,7 @@ export default function Buildings() {
                         <MapPin size={12} /> {b.location || 'No location'}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500">
-                        <Layers size={12} /> {b.floors || 0} floors
+                        <Layers size={12} /> {b.totalFloors || 0} floors
                       </div>
                     </div>
                     <div className="flex items-center gap-1 ml-2 flex-shrink-0">

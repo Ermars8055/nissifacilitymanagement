@@ -258,7 +258,14 @@ public class HierarchyController : ControllerBase
     {
         var buildings = await _context.Buildings
             .Include(b => b.Client)
-            .Select(b => new { b.Id, b.Name, b.Location, b.ClientId, ClientName = b.Client!.Name })
+            .Select(b => new { 
+                b.Id, 
+                b.Name, 
+                b.Location, 
+                b.ClientId, 
+                ClientName = b.Client!.Name,
+                TotalFloors = b.Floors.Count
+            })
             .ToListAsync();
         return Ok(buildings);
     }

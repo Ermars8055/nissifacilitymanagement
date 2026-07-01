@@ -129,7 +129,11 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: const Color(0xFFDDD5C8), width: 2),
               ),
-              child: QrImageView(data: qrData, version: QrVersions.auto, size: 200),
+              child: SizedBox(
+                width: 200,
+                height: 200,
+                child: QrImageView(data: qrData, version: QrVersions.auto, size: 200),
+              ),
             ),
             const SizedBox(height: 16),
             Text(qrData, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFF1A1714))),
@@ -148,45 +152,43 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
                 ],
               ),
             ),
-          ],
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-        actions: [
-          Row(children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => Navigator.pop(ctx),
-                child: Container(
-                  height: 50,
-                  decoration: BoxDecoration(color: const Color(0xFFEEE8DF), borderRadius: BorderRadius.circular(14)),
-                  child: const Center(child: Text('Close', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF4A4540), fontSize: 15))),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sending to printer...')));
-                },
-                child: Container(
-                  height: 50,
-                  decoration: BoxDecoration(color: const Color(0xFF1E3D2F), borderRadius: BorderRadius.circular(14)),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.print_rounded, color: Colors.white, size: 18),
-                      SizedBox(width: 8),
-                      Text('Print QR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                    ],
+            const SizedBox(height: 24),
+            Row(children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(color: const Color(0xFFEEE8DF), borderRadius: BorderRadius.circular(14)),
+                    child: const Center(child: Text('Close', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF4A4540), fontSize: 15))),
                   ),
                 ),
               ),
-            ),
-          ]),
-        ],
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sending to printer...')));
+                  },
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(color: const Color(0xFF1E3D2F), borderRadius: BorderRadius.circular(14)),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.print_rounded, color: Colors.white, size: 18),
+                        SizedBox(width: 8),
+                        Text('Print QR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ]),
+          ],
+        ),
       ),
     );
   }

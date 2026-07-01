@@ -148,7 +148,13 @@ class _Building3DViewerScreenState extends State<Building3DViewerScreen> {
         ),
       ),
       body: kIsWeb && _webViewId != null
-          ? HtmlElementView(viewType: _webViewId!)
+          ? LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
+                child: HtmlElementView(viewType: _webViewId!),
+              ),
+            )
           : const Center(
               child: Text(
                 'Building 3D Stack is available on the Web Dashboard.',

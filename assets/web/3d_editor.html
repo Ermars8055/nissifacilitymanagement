@@ -41,11 +41,25 @@
 </head>
 <body>
     <div id="loading">Loading 3D Engine…</div>
-    <div id="overlay">Scroll to zoom · Drag floor to orbit · Drag object to move</div>
+    <div id="overlay">
+        Scroll to zoom · Drag floor to orbit · Drag object to move
+    </div>
+    
+    <div style="position: absolute; top: 15px; right: 15px; z-index: 9999; pointer-events: auto;">
+        <button id="btn-vertical" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.2s; pointer-events: auto;">
+            ↕️ Vertical Drag: OFF
+        </button>
+    </div>
 
     <script type="module">
+        // Disable right-click context menu so Right-Click drag works!
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        window.gltfLoader = new GLTFLoader();
 
         // ────────────────────────────────
         // RENDERER + SCENE
@@ -153,25 +167,53 @@
         const intersectPt = new THREE.Vector3();
         const dragOffset = new THREE.Vector3();
 
+        let isVerticalDrag = false;
+
+        let verticalDragMode = false;
+        
+        const btnVertical = document.getElementById('btn-vertical');
+        btnVertical.addEventListener('click', () => {
+            verticalDragMode = !verticalDragMode;
+            if (verticalDragMode) {
+                btnVertical.style.background = '#2D6B4F';
+                btnVertical.style.borderColor = '#10b981';
+                btnVertical.innerText = '↕️ Vertical Drag: ON';
+            } else {
+                btnVertical.style.background = 'rgba(255,255,255,0.1)';
+                btnVertical.style.borderColor = 'rgba(255,255,255,0.3)';
+                btnVertical.innerText = '↕️ Vertical Drag: OFF';
+            }
+        });
+
         function updateMouse(e) {
-            // Use clientX/Y relative to the canvas, not the whole window
             const rect = renderer.domElement.getBoundingClientRect();
             mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
             mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
         }
 
+        renderer.domElement.tabIndex = 1; // Allow canvas to receive focus
+
         renderer.domElement.addEventListener('pointerdown', (e) => {
+            renderer.domElement.focus(); 
             updateMouse(e);
             raycaster.setFromCamera(mouse, camera);
-            // Cast against all placed mesh children
             const hits = raycaster.intersectObjects(placedObjects, true);
             if (hits.length > 0) {
-                // Walk up to the group root
                 let obj = hits[0].object;
                 while (obj.parent && !obj.parent.isScene) obj = obj.parent;
                 dragged = obj;
                 orbit.enabled = false;
-                // Record where on the floor the ray hits so dragging feels 1:1
+                
+                isVerticalDrag = verticalDragMode || e.shiftKey || e.button === 2;
+                
+                if (isVerticalDrag) {
+                    const camDir = new THREE.Vector3();
+                    camera.getWorldDirection(camDir);
+                    dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), dragged.position);
+                } else {
+                    dragPlane.setComponents(0, 1, 0, -dragged.position.y);
+                }
+                
                 raycaster.ray.intersectPlane(dragPlane, intersectPt);
                 dragOffset.copy(dragged.position).sub(intersectPt);
                 renderer.domElement.setPointerCapture(e.pointerId);
@@ -181,11 +223,33 @@
         renderer.domElement.addEventListener('pointermove', (e) => {
             if (!dragged) return;
             updateMouse(e);
+            
+            const wantsVertical = verticalDragMode || e.shiftKey || e.buttons === 2;
+            
+            // Allow toggling mid-drag
+            if (isVerticalDrag !== wantsVertical) {
+                isVerticalDrag = wantsVertical;
+                if (isVerticalDrag) {
+                    const camDir = new THREE.Vector3();
+                    camera.getWorldDirection(camDir);
+                    dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), dragged.position);
+                } else {
+                    dragPlane.setComponents(0, 1, 0, -dragged.position.y);
+                }
+                raycaster.setFromCamera(mouse, camera);
+                raycaster.ray.intersectPlane(dragPlane, intersectPt);
+                dragOffset.copy(dragged.position).sub(intersectPt);
+            }
+
             raycaster.setFromCamera(mouse, camera);
             if (raycaster.ray.intersectPlane(dragPlane, intersectPt)) {
-                const limit = half - 0.8;
-                dragged.position.x = Math.max(-limit, Math.min(limit, intersectPt.x + dragOffset.x));
-                dragged.position.z = Math.max(-limit, Math.min(limit, intersectPt.z + dragOffset.z));
+                if (isVerticalDrag) {
+                    dragged.position.y = Math.max(0, Math.min(10, intersectPt.y + dragOffset.y));
+                } else {
+                    const limit = half - 0.8;
+                    dragged.position.x = Math.max(-limit, Math.min(limit, intersectPt.x + dragOffset.x));
+                    dragged.position.z = Math.max(-limit, Math.min(limit, intersectPt.z + dragOffset.z));
+                }
             }
         });
 
@@ -274,18 +338,78 @@
         function buildAsset(id, name) {
             const n = name.toLowerCase();
             const color = getColor(name);
-            let g;
-            if (n.includes('chair'))           g = buildChairMesh(color);
-            else if (n.includes('table') || n.includes('desk')) g = buildTableMesh(color);
-            else if (n.includes('extinguisher') || n.includes('cylinder')) g = buildCylinderMesh(color);
-            else                                g = buildBoxMesh(color);
-
+            let g = new THREE.Group();
             g.userData.id = id;
-            g.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+
+            let modelUrl = null;
+            let modelScale = 1;
+            if (n.includes('air') || n.includes('ac ') || n.includes('conditioner') || n.includes('hvac')) {
+                modelUrl = '../models/air_con.glb';
+                modelScale = 0.5;
+            } else if (n.includes('panel') || n.includes('electrical') || n.includes('transformer')) {
+                modelUrl = '../models/industrial_electrical_and_panel_assembly_asset.glb';
+                modelScale = 0.5;
+            } else if (n.includes('extinguisher') || n.includes('fire ext')) {
+                modelUrl = '../models/uploads_files_2406338_FireExtinguisher.gltf';
+                modelScale = 0.5;
+            } else if (n.includes('alarm') || n.includes('smoke')) {
+                modelUrl = '../models/siemens_fire_alarm_low_poly.glb';
+                modelScale = 0.5;
+            } else if (n.includes('desk') || n.includes('pc')) {
+                modelUrl = '../models/desk_and_pc.glb';
+                modelScale = 0.5;
+            }
+
+            if (modelUrl) {
+                const placeholder = buildBoxMesh(color);
+                g.add(placeholder);
+
+                window.gltfLoader.load(modelUrl, (gltf) => {
+                    g.remove(placeholder);
+                    const model = gltf.scene;
+
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
+
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const s = 1.5 / maxDim;
+                    model.scale.set(s, s, s);
+
+                    model.position.set(-center.x * s, -box.min.y * s, -center.z * s);
+
+                    const wrapper = new THREE.Group();
+                    wrapper.add(model);
+                    g.add(wrapper);
+
+                    wrapper.traverse(c => {
+                        if (c.isMesh) {
+                            c.castShadow = true; c.receiveShadow = true;
+                            c.userData.group = g;
+                            c.userData.id = id;
+                            placedObjects.push(c);
+                        }
+                    });
+                });
+            } else {
+                let prim;
+                if (n.includes('chair'))           prim = buildChairMesh(color);
+                else if (n.includes('table') || n.includes('desk')) prim = buildTableMesh(color);
+                else if (n.includes('extinguisher') || n.includes('cylinder')) prim = buildCylinderMesh(color);
+                else                                prim = buildBoxMesh(color);
+                
+                g.add(prim);
+                prim.traverse(c => {
+                    if (c.isMesh) {
+                        c.castShadow = true; c.receiveShadow = true;
+                        c.userData.group = g;
+                        c.userData.id = id;
+                        placedObjects.push(c);
+                    }
+                });
+            }
+
             scene.add(g);
-            placedObjects.push(...g.children.filter(c => c.isMesh)); // drag targets are meshes
-            // Store group reference on each child for drag-to-group
-            g.children.forEach(c => { c.userData.group = g; c.userData.id = id; });
             return g;
         }
 
