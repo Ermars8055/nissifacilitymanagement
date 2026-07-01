@@ -5,8 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 class ApiClient {
-  // static const String baseUrl = 'https://management.ermarscastar.in/api';
-  static const String baseUrl = 'http://localhost:5294/api';
+  static const String baseUrl = 'https://management.ermarscastar.in/api';
+  // static const String baseUrl = 'http://localhost:5294/api';
 
   static Future<bool> isConnected() async {
     final results = await Connectivity().checkConnectivity();
