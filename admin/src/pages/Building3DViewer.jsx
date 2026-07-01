@@ -79,16 +79,15 @@ export default function Building3DViewer() {
         for (const floor of floors) {
           const assets = building._assetMap[floor.id] || []
           for (const asset of assets) {
-            if (asset.assetPosX != null && asset.assetPosY != null) {
-              iframe.contentWindow.postMessage(JSON.stringify({
-                type: 'add_asset',
-                id: asset.id,
-                name: asset.name,
-                floorId: floor.id,
-                x: asset.assetPosX,
-                z: asset.assetPosY
-              }), '*')
-            }
+            // Send all assets to the viewer. The 3D script handles placing unpositioned assets in the center.
+            iframe.contentWindow.postMessage(JSON.stringify({
+              type: 'add_asset',
+              id: asset.id,
+              name: asset.name,
+              floorId: floor.id,
+              x: asset.assetPosX,
+              z: asset.assetPosY
+            }), '*')
           }
         }
       }, 500)
