@@ -1,10 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/session/session_manager.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  String _appVersion = '...';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _appVersion = 'v${info.version}');
+    });
+  }
 
   String _initials(String name) {
     final parts = name.trim().split(' ');
@@ -120,7 +136,7 @@ class SettingsScreen extends StatelessWidget {
 
                     // App info
                     _InfoCard(children: [
-                      _InfoRow(icon: Icons.info_outline_rounded, label: 'App Version', value: 'v1.0.0'),
+                      _InfoRow(icon: Icons.info_outline_rounded, label: 'App Version', value: _appVersion),
                       _Divider(),
                       _InfoRow(icon: Icons.security_outlined, label: 'Auth', value: 'Google SSO'),
                     ]),

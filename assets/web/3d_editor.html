@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Spatial Editor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #111827; font-family: sans-serif; }
+        canvas { display: block; }
+
+        #overlay {
+            position: fixed;
+            top: 10px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: #aaa;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            pointer-events: none;
+            user-select: none;
+        }
+        #loading {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 18px;
+        }
+    </style>
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="loading">Loading 3D Engine…</div>
+    <div id="overlay">
+        Scroll to zoom · Drag floor to orbit · Drag object to move
+    </div>
+    
+    <div style="position: absolute; top: 15px; right: 15px; z-index: 9999; pointer-events: auto;">
+        <button id="btn-vertical" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.2s; pointer-events: auto;">
+            ↕️ Vertical Drag: OFF
+        </button>
+    </div>
+
+    <script type="module">
+        // Disable right-click context menu so Right-Click drag works!
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        window.gltfLoader = new GLTFLoader();
+
+        // ────────────────────────────────
+        // RENDERER + SCENE
+        // ────────────────────────────────
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#111827');
+        scene.fog = new THREE.FogExp2('#111827', 0.04);
+
+        const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
+        camera.position.set(15, 20, 15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(devicePixelRatio);
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        document.getElementById('loading').remove();
+
+        // ────────────────────────────────
+        // LIGHTS
+        // ────────────────────────────────
+        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambient);
+
+        const sun = new THREE.DirectionalLight(0xfff5e0, 1.8);
+        sun.position.set(12, 30, 12);
+        sun.castShadow = true;
+        sun.shadow.mapSize.set(2048, 2048);
+        sun.shadow.camera.near = 0.5;
+        sun.shadow.camera.far = 100;
+        sun.shadow.camera.left = -30;
+        sun.shadow.camera.right = 30;
+        sun.shadow.camera.top = 30;
+        sun.shadow.camera.bottom = -30;
+        scene.add(sun);
+
+        const fill = new THREE.DirectionalLight(0xadd8e6, 0.4);
+        fill.position.set(-10, 10, -10);
+        scene.add(fill);
+
+        // ────────────────────────────────
+        // FLOOR
+        // ────────────────────────────────
+        const ROOM_W = 20, ROOM_D = 20, WALL_H = 5, WALL_T = 0.2;
+        const floorMat  = new THREE.MeshStandardMaterial({ color: '#d4a96a', roughness: 0.8, metalness: 0.0 });
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Tile grid lines
+        const gridHelper = new THREE.GridHelper(ROOM_W, 20, '#b08d50', '#b08d50');
+        gridHelper.position.y = 0.01;
+        scene.add(gridHelper);
+
+        // ────────────────────────────────
+        // WALLS (3 walls + open front)
+        // ────────────────────────────────
+        const wallMat = new THREE.MeshStandardMaterial({ color: '#f8f8f5', roughness: 0.9, side: THREE.FrontSide });
+        const makeWall = (w, h, d, x, y, z, ry) => {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+            m.position.set(x, y, z);
+            m.rotation.y = ry;
+            m.receiveShadow = true;
+            m.castShadow = false;
+            scene.add(m);
+        };
+        const half = ROOM_W / 2;
+        // Back wall
+        makeWall(ROOM_W + WALL_T, WALL_H, WALL_T, 0, WALL_H/2, -half, 0);
+        // Left wall
+        makeWall(ROOM_D, WALL_H, WALL_T, -half, WALL_H/2, 0, Math.PI/2);
+        // Right wall
+        makeWall(ROOM_D, WALL_H, WALL_T, half, WALL_H/2, 0, Math.PI/2);
+
+        // Ceiling (semi-transparent)
+        const ceilMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, transparent: true, opacity: 0.06 });
+        const ceil = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), ceilMat);
+        ceil.rotation.x = Math.PI / 2;
+        ceil.position.y = WALL_H;
+        scene.add(ceil);
+
+        // ────────────────────────────────
+        // ORBIT CONTROLS
+        // ────────────────────────────────
+        const orbit = new OrbitControls(camera, renderer.domElement);
+        orbit.enableDamping = true;
+        orbit.dampingFactor = 0.08;
+        orbit.minDistance = 5;
+        orbit.maxDistance = 60;
+        orbit.maxPolarAngle = Math.PI / 2 - 0.04;
+        orbit.target.set(0, 0, 0);
+
+        // ────────────────────────────────
+        // ASSET DRAG-AND-DROP
+        // ────────────────────────────────
+        const placedObjects = [];
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let dragged = null;
+        // Drag plane always sits at Y=0 (floor level)
+        const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const intersectPt = new THREE.Vector3();
+        const dragOffset = new THREE.Vector3();
+
+        let isVerticalDrag = false;
+
+        let verticalDragMode = false;
+        
+        const btnVertical = document.getElementById('btn-vertical');
+        btnVertical.addEventListener('click', () => {
+            verticalDragMode = !verticalDragMode;
+            if (verticalDragMode) {
+                btnVertical.style.background = '#2D6B4F';
+                btnVertical.style.borderColor = '#10b981';
+                btnVertical.innerText = '↕️ Vertical Drag: ON';
+            } else {
+                btnVertical.style.background = 'rgba(255,255,255,0.1)';
+                btnVertical.style.borderColor = 'rgba(255,255,255,0.3)';
+                btnVertical.innerText = '↕️ Vertical Drag: OFF';
+            }
+        });
+
+        function updateMouse(e) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+            mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+        }
+
+        renderer.domElement.tabIndex = 1; // Allow canvas to receive focus
+
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+            renderer.domElement.focus(); 
+            updateMouse(e);
+            raycaster.setFromCamera(mouse, camera);
+            const hits = raycaster.intersectObjects(placedObjects, true);
+            if (hits.length > 0) {
+                let obj = hits[0].object;
+                while (obj.parent && !obj.parent.isScene) obj = obj.parent;
+                dragged = obj;
+                orbit.enabled = false;
+                
+                isVerticalDrag = verticalDragMode || e.shiftKey || e.button === 2;
+                
+                if (isVerticalDrag) {
+                    const camDir = new THREE.Vector3();
+                    camera.getWorldDirection(camDir);
+                    dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), dragged.position);
+                } else {
+                    dragPlane.setComponents(0, 1, 0, -dragged.position.y);
+                }
+                
+                raycaster.ray.intersectPlane(dragPlane, intersectPt);
+                dragOffset.copy(dragged.position).sub(intersectPt);
+                renderer.domElement.setPointerCapture(e.pointerId);
+            }
+        });
+
+        renderer.domElement.addEventListener('pointermove', (e) => {
+            if (!dragged) return;
+            updateMouse(e);
+            
+            const wantsVertical = verticalDragMode || e.shiftKey || e.buttons === 2;
+            
+            // Allow toggling mid-drag
+            if (isVerticalDrag !== wantsVertical) {
+                isVerticalDrag = wantsVertical;
+                if (isVerticalDrag) {
+                    const camDir = new THREE.Vector3();
+                    camera.getWorldDirection(camDir);
+                    dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), dragged.position);
+                } else {
+                    dragPlane.setComponents(0, 1, 0, -dragged.position.y);
+                }
+                raycaster.setFromCamera(mouse, camera);
+                raycaster.ray.intersectPlane(dragPlane, intersectPt);
+                dragOffset.copy(dragged.position).sub(intersectPt);
+            }
+
+            raycaster.setFromCamera(mouse, camera);
+            if (raycaster.ray.intersectPlane(dragPlane, intersectPt)) {
+                if (isVerticalDrag) {
+                    dragged.position.y = Math.max(0, Math.min(10, intersectPt.y + dragOffset.y));
+                } else {
+                    const limit = half - 0.8;
+                    dragged.position.x = Math.max(-limit, Math.min(limit, intersectPt.x + dragOffset.x));
+                    dragged.position.z = Math.max(-limit, Math.min(limit, intersectPt.z + dragOffset.z));
+                }
+            }
+        });
+
+        // Listen on both canvas AND document so releasing outside canvas still fires
+        const onPointerUp = (e) => {
+            if (dragged) {
+                notifyFlutter({ type: 'asset_moved', id: dragged.userData.id, x: dragged.position.x, z: dragged.position.z });
+                dragged = null;
+                orbit.enabled = true;
+            }
+        };
+        renderer.domElement.addEventListener('pointerup', onPointerUp);
+        renderer.domElement.addEventListener('pointercancel', onPointerUp);
+
+        // ────────────────────────────────
+        // ASSET BUILDER — real 3D shapes
+        // ────────────────────────────────
+        const ASSET_COLORS = {
+            chair:       '#3b82f6',
+            desk:        '#8b5cf6',
+            table:       '#f59e0b',
+            hvac:        '#14b8a6',
+            server:      '#6366f1',
+            extinguisher:'#ef4444',
+            default:     '#10b981',
+        };
+
+        function getColor(name) {
+            const n = name.toLowerCase();
+            for (const k of Object.keys(ASSET_COLORS)) {
+                if (n.includes(k)) return ASSET_COLORS[k];
+            }
+            return ASSET_COLORS.default;
+        }
+
+        function buildChairMesh(color) {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
+            // Seat
+            g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.7,0.08,0.7), mat), { position: new THREE.Vector3(0,0.5,0) }));
+            // Back
+            const back = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.6,0.08), mat);
+            back.position.set(0, 0.85, -0.3);
+            g.add(back);
+            // Legs
+            [[-0.3,0,-0.3],[0.3,0,-0.3],[-0.3,0,0.3],[0.3,0,0.3]].forEach(([x,y,z]) => {
+                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.5,8), mat);
+                leg.position.set(x,0.25,z);
+                g.add(leg);
+            });
+            return g;
+        }
+
+        function buildTableMesh(color) {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color, roughness:0.4 });
+            const top = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.08,0.8), mat);
+            top.position.y = 0.8;
+            g.add(top);
+            [[-0.6,0,-0.3],[0.6,0,-0.3],[-0.6,0,0.3],[0.6,0,0.3]].forEach(([x,y,z]) => {
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07,0.8,0.07), mat);
+                leg.position.set(x,0.4,z);
+                g.add(leg);
+            });
+            return g;
+        }
+
+        function buildBoxMesh(color, w=1, h=1.2, d=1) {
+            const mat = new THREE.MeshStandardMaterial({ color, roughness:0.6 });
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            m.position.y = h/2;
+            const g = new THREE.Group();
+            g.add(m);
+            return g;
+        }
+
+        function buildCylinderMesh(color) {
+            const mat = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
+            const m = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.2, 16), mat);
+            m.position.y = 0.6;
+            const g = new THREE.Group();
+            g.add(m);
+            return g;
+        }
+
+        function buildAsset(id, name) {
+            const n = name.toLowerCase();
+            const color = getColor(name);
+            let g = new THREE.Group();
+            g.userData.id = id;
+
+            let modelUrl = null;
+            let modelScale = 1;
+            if (n.includes('air') || n.includes('ac ') || n.includes('conditioner') || n.includes('hvac')) {
+                modelUrl = '../models/air_con.glb';
+                modelScale = 0.5;
+            } else if (n.includes('panel') || n.includes('electrical') || n.includes('transformer')) {
+                modelUrl = '../models/industrial_electrical_and_panel_assembly_asset.glb';
+                modelScale = 0.5;
+            } else if (n.includes('extinguisher') || n.includes('fire ext')) {
+                modelUrl = '../models/uploads_files_2406338_FireExtinguisher.gltf';
+                modelScale = 0.5;
+            } else if (n.includes('alarm') || n.includes('smoke')) {
+                modelUrl = '../models/siemens_fire_alarm_low_poly.glb';
+                modelScale = 0.5;
+            } else if (n.includes('desk') || n.includes('pc')) {
+                modelUrl = '../models/desk_and_pc.glb';
+                modelScale = 0.5;
+            }
+
+            if (modelUrl) {
+                const placeholder = buildBoxMesh(color);
+                g.add(placeholder);
+
+                window.gltfLoader.load(modelUrl, (gltf) => {
+                    g.remove(placeholder);
+                    const model = gltf.scene;
+
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
+
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const s = 1.5 / maxDim;
+                    model.scale.set(s, s, s);
+
+                    model.position.set(-center.x * s, -box.min.y * s, -center.z * s);
+
+                    const wrapper = new THREE.Group();
+                    wrapper.add(model);
+                    g.add(wrapper);
+
+                    wrapper.traverse(c => {
+                        if (c.isMesh) {
+                            c.castShadow = true; c.receiveShadow = true;
+                            c.userData.group = g;
+                            c.userData.id = id;
+                            placedObjects.push(c);
+                        }
+                    });
+                });
+            } else {
+                let prim;
+                if (n.includes('chair'))           prim = buildChairMesh(color);
+                else if (n.includes('table') || n.includes('desk')) prim = buildTableMesh(color);
+                else if (n.includes('extinguisher') || n.includes('cylinder')) prim = buildCylinderMesh(color);
+                else                                prim = buildBoxMesh(color);
+                
+                g.add(prim);
+                prim.traverse(c => {
+                    if (c.isMesh) {
+                        c.castShadow = true; c.receiveShadow = true;
+                        c.userData.group = g;
+                        c.userData.id = id;
+                        placedObjects.push(c);
+                    }
+                });
+            }
+
+            scene.add(g);
+            return g;
+        }
+
+        // ────────────────────────────────
+        // FLUTTER ↔ JS BRIDGE
+        // ────────────────────────────────
+        function notifyFlutter(payload) {
+            // Try webview_flutter channel (Android/iOS)
+            if (window.FlutterChannel) {
+                window.FlutterChannel.postMessage(JSON.stringify(payload));
+                return;
+            }
+            // Flutter Web: postMessage to parent
+            window.parent.postMessage(JSON.stringify(payload), '*');
+        }
+
+        // Called by Flutter to add an asset
+        window.addAsset = function(id, name, x, z) {
+            const g = buildAsset(id, name);
+            // Map from Flutter logical coords (e.g. 200,150) to Three.js world (-10..10)
+            g.position.set(
+                (x / 20) - (ROOM_W / 2),
+                0,
+                (z / 15) - (ROOM_D / 2)
+            );
+        };
+
+        // Listen for postMessage from Flutter Web iframe host
+        window.addEventListener('message', (e) => {
+            try {
+                const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+                if (msg.type === 'add_asset') {
+                    window.addAsset(msg.id, msg.name, msg.x ?? 200, msg.z ?? 150);
+                }
+            } catch(_) {}
+        });
+
+        // Engine ready
+        notifyFlutter({ type: 'engine_ready' });
+
+        // ────────────────────────────────
+        // RENDER LOOP
+        // ────────────────────────────────
+        window.addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+
+        (function animate() {
+            requestAnimationFrame(animate);
+            orbit.update();
+            renderer.render(scene, camera);
+        })();
+    </script>
+</body>
+</html>

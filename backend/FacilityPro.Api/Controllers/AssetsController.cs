@@ -103,13 +103,26 @@ public class AssetsController : ControllerBase
             .Include(a => a.Building).ThenInclude(b => b!.Client)
             .Select(a => new {
                 a.Id, a.Name, a.SerialNumber, a.QrCode, a.Status, a.BuildingId,
-                BuildingName = a.Building!.Name,
-                ClientName   = a.Building.Client!.Name,
+                BuildingName = a.Building != null ? a.Building.Name : "Unknown",
+                ClientName   = (a.Building != null && a.Building.Client != null) ? a.Building.Client.Name : "Unknown",
                 Category     = a.Category == null ? null : new { a.Category.Id, a.Category.Name },
                 Room         = a.Room == null ? null : new { a.Room.Id, a.Room.Name }
             })
             .ToListAsync();
         return Ok(assets);
+    }
+
+    [HttpPut("{id}/position")]
+    public async Task<IActionResult> UpdateAssetPosition(string id, [FromBody] AssetPositionDto dto)
+    {
+        var asset = await _context.Assets.FindAsync(id);
+        if (asset == null) return NotFound();
+
+        asset.AssetPosX = dto.AssetPosX;
+        asset.AssetPosY = dto.AssetPosY;
+
+        await _context.SaveChangesAsync();
+        return Ok(asset);
     }
 
     [AllowAnonymous]
@@ -206,4 +219,23 @@ public class AssetsController : ControllerBase
 
         return Ok($"Seeded {added} categories in hierarchy.");
     }
+
+    [HttpPut("{id}/position")]
+    public async Task<IActionResult> UpdatePosition(string id, [FromBody] AssetPositionDto dto)
+    {
+        var asset = await _context.Assets.FindAsync(id);
+        if (asset == null) return NotFound("Asset not found.");
+
+        asset.AssetPosX = dto.AssetPosX;
+        asset.AssetPosY = dto.AssetPosY;
+        
+        await _context.SaveChangesAsync();
+        return Ok(asset);
+    }
+}
+
+public class AssetPositionDto
+{
+    public double? AssetPosX { get; set; }
+    public double? AssetPosY { get; set; }
 }

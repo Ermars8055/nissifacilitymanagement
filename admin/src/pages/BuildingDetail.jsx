@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Layers, DoorOpen, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Layers, DoorOpen, Trash2, Box } from 'lucide-react'
 import api from '../api/client'
 
 export default function BuildingDetail() {
@@ -61,10 +61,13 @@ export default function BuildingDetail() {
         <button onClick={() => navigate('/buildings')} className="p-2 hover:bg-gray-100 rounded-lg">
           <ArrowLeft size={18} className="text-gray-600" />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{building.name}</h1>
           <p className="text-sm text-gray-400">{building.location}</p>
         </div>
+        <button onClick={() => navigate(`/buildings/${id}/3d`)} className="btn-primary flex items-center gap-2">
+          <Box size={16} /> View 3D Building
+        </button>
       </div>
 
       {/* Info cards */}
@@ -125,6 +128,7 @@ export default function BuildingDetail() {
 }
 
 function FloorRow({ floor, index, buildingId, onDelete }) {
+  const navigate = useNavigate()
   const [rooms, setRooms] = useState([])
   const [open, setOpen] = useState(false)
   const [loadingRooms, setLoadingRooms] = useState(false)
@@ -213,17 +217,26 @@ function FloorRow({ floor, index, buildingId, onDelete }) {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {rooms.map(room => (
-                <div key={room.id} className="bg-white border border-gray-200 rounded-lg p-3 relative group">
-                  <button
-                    onClick={() => deleteRoom(room)}
-                    className="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-all"
-                    title="Delete room"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                  <p className="text-sm font-semibold text-gray-800 truncate pr-5">{room.name}</p>
-                  <p className="text-xs text-gray-400 font-mono mt-0.5">{room.qrCode}</p>
-                  <p className="text-xs text-gray-400 mt-1">{room.assets?.length || 0} assets</p>
+                <div key={room.id} className="bg-white border border-gray-200 rounded-lg p-3 relative group flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <p className="text-sm font-semibold text-gray-800 truncate pr-5">{room.name}</p>
+                      <button
+                        onClick={() => deleteRoom(room)}
+                        className="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded text-gray-400 hover:text-red-500 transition-all absolute top-2 right-2"
+                        title="Delete room"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 font-mono mt-0.5">{room.qrCode}</p>
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <p className="text-xs text-gray-400">{room.assets?.length || 0} assets</p>
+                    <button onClick={() => navigate(`/rooms/${room.id}/3d`)} className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                      <Box size={10} /> 3D Editor
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

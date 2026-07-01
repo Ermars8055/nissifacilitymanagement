@@ -14,6 +14,8 @@ import PmScheduler from './pages/PmScheduler'
 import Checklists from './pages/Checklists'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import Building3DViewer from './pages/Building3DViewer'
+import Room3DViewer from './pages/Room3DViewer'
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth()
@@ -39,6 +41,8 @@ function ProtectedRoutes() {
         <Route path="clients" element={<Clients />} />
         <Route path="buildings" element={<Buildings />} />
         <Route path="buildings/:id" element={<BuildingDetail />} />
+        <Route path="buildings/:id/3d" element={<Building3DViewer />} />
+        <Route path="rooms/:id/3d" element={<Room3DViewer />} />
         <Route path="assets" element={<Assets />} />
         <Route path="work-orders" element={<WorkOrders />} />
         <Route path="complaints" element={<Complaints />} />

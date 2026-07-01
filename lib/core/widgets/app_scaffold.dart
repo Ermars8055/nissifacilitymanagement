@@ -337,8 +337,6 @@ class _DesktopSidebar extends StatelessWidget {
                     if (context.mounted) context.go('/login');
                   },
                   tooltip: 'Logout',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
                 ),
               ],
             ),

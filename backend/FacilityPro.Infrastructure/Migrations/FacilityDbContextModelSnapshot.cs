@@ -22,6 +22,12 @@ namespace FacilityPro.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<double?>("AssetPosX")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("AssetPosY")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("BuildingId")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -369,8 +375,17 @@ namespace FacilityPro.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<double>("CanvasHeight")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("CanvasWidth")
+                        .HasColumnType("REAL");
+
                     b.Property<int>("FloorNumber")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("FloorPlanImageUrl")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -451,17 +466,33 @@ namespace FacilityPro.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("FloorId")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<double>("Height")
+                        .HasColumnType("REAL");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<double>("PosX")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("PosY")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("QrCode")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<double>("Width")
+                        .HasColumnType("REAL");
 
                     b.HasKey("Id");
 

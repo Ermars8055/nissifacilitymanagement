@@ -27,14 +27,73 @@ public class HierarchyController : ControllerBase
     [HttpGet("buildings/{clientId}")]
     public async Task<IActionResult> GetBuildings(string clientId)
     {
-        var buildings = await _context.Buildings.Where(b => b.ClientId == clientId).ToListAsync();
+        var buildings = await _context.Buildings
+            .Where(b => b.ClientId == clientId)
+            .Select(b => new {
+                b.Id,
+                b.ClientId,
+                b.Name,
+                b.Location,
+                b.TargetLat,
+                b.TargetLng,
+                b.LobbyQrCode,
+                FloorCount = b.Floors.Count,
+                RoomCount = b.Floors.SelectMany(f => f.Rooms).Count()
+            })
+            .ToListAsync();
         return Ok(buildings);
     }
 
     [HttpGet("building/{buildingId}")]
     public async Task<IActionResult> GetBuilding(string buildingId)
     {
-        var building = await _context.Buildings.FirstOrDefaultAsync(b => b.Id == buildingId);
+        var building = await _context.Buildings
+            .Where(b => b.Id == buildingId)
+            .Select(b => new {
+                b.Id,
+                b.ClientId,
+                b.Name,
+                b.Location,
+                b.TargetLat,
+                b.TargetLng,
+                b.LobbyQrCode,
+                Floors = b.Floors.Count,
+                Rooms = b.Floors.SelectMany(f => f.Rooms).Count()
+            })
+            .FirstOrDefaultAsync();
+            
+        if (building == null) return NotFound();
+        return Ok(building);
+    }
+
+    [HttpGet("building/{buildingId}/full")]
+    public async Task<IActionResult> GetBuildingFull(string buildingId)
+    {
+        var building = await _context.Buildings
+            .Include(b => b.Floors)
+                .ThenInclude(f => f.Rooms)
+            .Where(b => b.Id == buildingId)
+            .Select(b => new {
+                b.Id,
+                b.Name,
+                Floors = b.Floors.Select(f => new {
+                    f.Id,
+                    f.Name,
+                    f.FloorNumber,
+                    f.FloorPlanImageUrl,
+                    Rooms = f.Rooms.Select(r => new {
+                        r.Id,
+                        r.Name,
+                        r.PosX,
+                        r.PosY,
+                        r.Width,
+                        r.Height,
+                        r.Color
+                    }).ToList()
+                }).OrderBy(f => f.FloorNumber).ToList()
+            })
+            .FirstOrDefaultAsync();
+            
         if (building == null) return NotFound();
         return Ok(building);
     }
@@ -82,6 +141,14 @@ public class HierarchyController : ControllerBase
             .Where(r => r.FloorId == floorId)
             .ToListAsync();
         return Ok(rooms);
+    }
+
+    [HttpGet("rooms/single/{id}")]
+    public async Task<IActionResult> GetSingleRoom(string id)
+    {
+        var room = await _context.Rooms.FindAsync(id);
+        if (room == null) return NotFound();
+        return Ok(room);
     }
 
     [HttpPost("rooms")]
@@ -158,12 +225,47 @@ public class HierarchyController : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("rooms/{id}/position")]
+    public async Task<IActionResult> UpdateRoomPosition(string id, [FromBody] RoomPositionDto dto)
+    {
+        var room = await _context.Rooms.FindAsync(id);
+        if (room == null) return NotFound();
+        
+        room.PosX = dto.PosX;
+        room.PosY = dto.PosY;
+        room.Width = dto.Width;
+        room.Height = dto.Height;
+        if (dto.Color != null) room.Color = dto.Color;
+        
+        await _context.SaveChangesAsync();
+        return Ok(room);
+    }
+
+    [HttpGet("floors/{id}/floorplan")]
+    public async Task<IActionResult> GetFloorPlan(string id)
+    {
+        var floor = await _context.Floors
+            .Include(f => f.Rooms)
+            .FirstOrDefaultAsync(f => f.Id == id);
+            
+        if (floor == null) return NotFound();
+        
+        return Ok(floor);
+    }
+
     [HttpGet("all-buildings")]
     public async Task<IActionResult> GetAllBuildings()
     {
         var buildings = await _context.Buildings
             .Include(b => b.Client)
-            .Select(b => new { b.Id, b.Name, b.Location, b.ClientId, ClientName = b.Client!.Name })
+            .Select(b => new { 
+                b.Id, 
+                b.Name, 
+                b.Location, 
+                b.ClientId, 
+                ClientName = b.Client!.Name,
+                TotalFloors = b.Floors.Count
+            })
             .ToListAsync();
         return Ok(buildings);
     }
@@ -203,4 +305,13 @@ public class HierarchyController : ControllerBase
         await _context.SaveChangesAsync();
         return Ok("Seeded successfully");
     }
+}
+
+public class RoomPositionDto
+{
+    public double PosX { get; set; }
+    public double PosY { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public string? Color { get; set; }
 }

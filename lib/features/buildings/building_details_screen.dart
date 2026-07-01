@@ -132,6 +132,52 @@ class _BuildingDetailsScreenState extends State<BuildingDetailsScreen> {
                 ),
 
                 const SizedBox(height: 26),
+                
+                const Text('Visual Map', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
+                const SizedBox(height: 14),
+                GestureDetector(
+                  onTap: () => context.push('/hierarchy-builder'),
+                  child: Container(
+                    height: 160,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3D2F),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(color: const Color(0xFF1A1714).withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: CustomPaint(painter: _IsometricBuildingPainter()),
+                          ),
+                        ),
+                        const Positioned(
+                          bottom: 20,
+                          left: 20,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Explore Floor Plans', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                              SizedBox(height: 4),
+                              Text('View 2D layouts and asset maps', style: TextStyle(color: Color(0xFFA3B8A8), fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                        const Positioned(
+                          top: 20,
+                          right: 20,
+                          child: Icon(Icons.arrow_forward_rounded, color: Colors.white),
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 26),
 
                 const Text('Building Health', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
                 const SizedBox(height: 14),
@@ -253,4 +299,36 @@ class _QuickAction extends StatelessWidget {
       ),
     );
   }
+}
+
+class _IsometricBuildingPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    
+    // Draw isometric floors
+    for (int i = 0; i < 3; i++) {
+      paint.color = i == 2 ? const Color(0xFF10B981).withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.1);
+      final path = Path();
+      double startY = size.height - (i * 25) - 40;
+      double startX = size.width / 2;
+      
+      path.moveTo(startX, startY);
+      path.lineTo(startX + 80, startY - 40);
+      path.lineTo(startX, startY - 80);
+      path.lineTo(startX - 80, startY - 40);
+      path.close();
+      
+      canvas.drawPath(path, paint);
+      
+      paint.style = PaintingStyle.stroke;
+      paint.color = i == 2 ? const Color(0xFF10B981) : Colors.white.withValues(alpha: 0.3);
+      paint.strokeWidth = 2;
+      canvas.drawPath(path, paint);
+      paint.style = PaintingStyle.fill;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

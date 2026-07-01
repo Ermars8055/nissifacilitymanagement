@@ -16,7 +16,10 @@ export function AuthProvider({ children }) {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         try {
-          const r = await api.get(`/Users/by-email?email=${encodeURIComponent(fbUser.email)}`)
+          const token = await fbUser.getIdToken()
+          const r = await api.get(`/Users/by-email?email=${encodeURIComponent(fbUser.email)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
           const backendUser = r.data
           if (backendUser.role !== 'Admin' && backendUser.role !== 'Super Admin') {
             await signOutUser()

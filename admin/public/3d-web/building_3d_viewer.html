@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Building Stack</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #e8edf2; font-family: sans-serif; }
+        canvas { display: block; }
+        #loading {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%,-50%);
+            color: #334155; font-size: 16px; font-weight: 600;
+        }
+        #hint {
+            position: fixed; bottom: 18px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30,41,59,0.75); color: #cbd5e1;
+            padding: 6px 18px; border-radius: 20px; font-size: 12px;
+            pointer-events: none; user-select: none; white-space: nowrap;
+        }
+        #toolbar {
+            position: fixed; top: 14px; right: 16px;
+            display: flex; gap: 8px;
+        }
+        #toolbar button {
+            background: rgba(255,255,255,0.85);
+            border: 1px solid #cbd5e1; color: #1e293b;
+            padding: 7px 14px; border-radius: 8px; cursor: pointer;
+            font-size: 12px; font-weight: 600; letter-spacing: 0.4px;
+            transition: all 0.2s;
+        }
+        #toolbar button:hover { background: #f1f5f9; }
+        #toolbar button.active { background: #2D6B4F; border-color: #10b981; color: white; }
+        #floor-legend {
+            position: fixed; left: 16px; top: 50%;
+            transform: translateY(-50%);
+            display: flex; flex-direction: column-reverse; gap: 6px;
+        }
+        .fchip {
+            background: rgba(255,255,255,0.85); border: 1px solid #e2e8f0;
+            border-radius: 6px; padding: 5px 12px; cursor: pointer;
+            font-size: 11px; color: #64748b; font-weight: 600;
+            user-select: none; pointer-events: auto;
+            transition: all 0.2s;
+        }
+        .fchip:hover { background: #f1f5f9; color: #334155; }
+        .fchip.active { background: #2D6B4F; border-color: #10b981; color: white; }
+    </style>
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+    </script>
+</head>
+<body>
+    <div id="loading">Loading Building…</div>
+    <div id="hint">Scroll to zoom · Left-drag to orbit · Drag coloured asset to move</div>
+    <div id="toolbar">
+        <button id="btn-stack" class="active">Stacked</button>
+        <button id="btn-explode">Exploded</button>
+        <button id="btn-vertical" style="margin-left: 10px;">↕️ Vertical Drag</button>
+    </div>
+    <div id="floor-legend"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+window.gltfLoader = new GLTFLoader();
+
+// ───────────────────────────────────────────────────────────
+// CONSTANTS  (floor plan canvas = 800×600 Flutter pixels)
+// ───────────────────────────────────────────────────────────
+const PLAN_W  = 800, PLAN_D  = 600;
+const WORLD_W = 28,  WORLD_D = 21;   // 3-D footprint
+const STORY_H = 5.5;                  // interior clear height
+const SLAB_T  = 0.35;                 // concrete slab thickness
+const WALL_T  = 0.18;
+const WINDOW_H = 3.2, WINDOW_W = 2.4;
+const GAP_EXPLODE = 3.5;             // extra vertical gap per storey when exploded
+
+// ───────────────────────────────────────────────────────────
+// RENDERER
+// ───────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#dce3ea');
+scene.fog        = new THREE.FogExp2('#dce3ea', 0.008);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 600);
+camera.position.set(55, 48, 55);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+document.getElementById('loading').remove();
+
+// ───────────────────────────────────────────────────────────
+// LIGHTS — bright, neutral, architectural
+// ───────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+const sun = new THREE.DirectionalLight(0xfff8f0, 2.0);
+sun.position.set(30, 80, 40);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far  = 300;
+['left','right','top','bottom'].forEach(k => sun.shadow.camera[k] = k === 'left' || k === 'bottom' ? -60 : 60);
+scene.add(sun);
+
+const fillLight = new THREE.DirectionalLight(0xc8d8f0, 0.5);
+fillLight.position.set(-20, 30, -20);
+scene.add(fillLight);
+
+// ───────────────────────────────────────────────────────────
+// ORBIT CONTROLS  (isometric-style default angle)
+// ───────────────────────────────────────────────────────────
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enableDamping = true;
+orbit.dampingFactor = 0.07;
+orbit.minDistance   = 15;
+orbit.maxDistance   = 180;
+orbit.target.set(0, 5, 0);
+
+// ───────────────────────────────────────────────────────────
+// SHARED MATERIALS
+// ───────────────────────────────────────────────────────────
+const M = {
+    slab:    () => new THREE.MeshStandardMaterial({ color:'#c8cdd4', roughness:0.9 }),
+    wall:    () => new THREE.MeshStandardMaterial({ color:'#f0f2f5', roughness:0.85 }),
+    floor:   () => new THREE.MeshStandardMaterial({ color:'#e6dcc8', roughness:0.8 }),
+    glass:   () => new THREE.MeshStandardMaterial({ color:'#a8c8e8', roughness:0.05, metalness:0.3, transparent:true, opacity:0.35 }),
+    frame:   () => new THREE.MeshStandardMaterial({ color:'#8090a0', roughness:0.7, metalness:0.2 }),
+    edge:    () => new THREE.LineBasicMaterial({ color:'#9ca3af', transparent:true, opacity:0.45 }),
+};
+
+const ASSET_COLORS = {
+    chair:'#3b82f6', desk:'#8b5cf6', table:'#f59e0b',
+    hvac:'#14b8a6',  server:'#6366f1', extinguisher:'#ef4444', default:'#10b981',
+};
+
+function assetColor(name) {
+    const n = name.toLowerCase();
+    for (const k of Object.keys(ASSET_COLORS)) if (n.includes(k)) return ASSET_COLORS[k];
+    return ASSET_COLORS.default;
+}
+
+// ───────────────────────────────────────────────────────────
+// COORDINATE HELPERS
+// ───────────────────────────────────────────────────────────
+const toWorld  = (px, py) => ({ x: (px/PLAN_W)*WORLD_W - WORLD_W/2, z: (py/PLAN_D)*WORLD_D - WORLD_D/2 });
+const fromWorld = (wx, wz) => ({ x: (wx + WORLD_W/2)/WORLD_W*PLAN_W, z: (wz + WORLD_D/2)/WORLD_D*PLAN_D });
+
+// ───────────────────────────────────────────────────────────
+// STATE
+// ───────────────────────────────────────────────────────────
+const floorMeta   = [];   // {group, baseY, level, floorId}
+const dragTargets = [];   // meshes that can be clicked to drag
+let   buildingData = null;
+let   isExploded   = false;
+
+// ───────────────────────────────────────────────────────────
+// BUILD A SINGLE STOREY
+// ───────────────────────────────────────────────────────────
+function buildFloor(floor, index) {
+    const level  = floor.floorNumber ?? index;
+    const baseY  = level * (STORY_H + SLAB_T);
+    const group  = new THREE.Group();
+    group.position.y = baseY;
+
+    // ── Concrete slab (bottom)
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(WORLD_W, SLAB_T, WORLD_D), M.slab());
+    slab.position.y = 0;
+    slab.receiveShadow = true;
+    slab.castShadow = true;
+    group.add(slab);
+
+    const floorY = SLAB_T; // interior floor surface in local coords
+
+    // ── Interior floor surface (warm wood tone)
+    const iFloor = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W, WORLD_D), M.floor());
+    iFloor.rotation.x = -Math.PI/2;
+    iFloor.position.y  = floorY + 0.01;
+    iFloor.receiveShadow = true;
+    group.add(iFloor);
+
+    // Grid on floor
+    const grid = new THREE.GridHelper(WORLD_W, 20, '#c8b898', '#c8b898');
+    grid.position.y = floorY + 0.02;
+    group.add(grid);
+
+    // ── OUTER WALLS  (back + left + right; front is OPEN for cutaway)
+    const wallH = STORY_H;
+    const hw = WORLD_W/2, hd = WORLD_D/2;
+    const wallY = floorY + wallH/2;
+
+    // Back wall (solid)
+    const bw = new THREE.Mesh(new THREE.BoxGeometry(WORLD_W, wallH, WALL_T), M.wall());
+    bw.position.set(0, wallY, -hd);
+    bw.castShadow = true; bw.receiveShadow = true;
+    group.add(bw);
+
+    // Left wall (solid)
+    const lw = new THREE.Mesh(new THREE.BoxGeometry(WALL_T, wallH, WORLD_D), M.wall());
+    lw.position.set(-hw, wallY, 0);
+    lw.castShadow = true; lw.receiveShadow = true;
+    group.add(lw);
+
+    // Right wall (solid)
+    const rw = new THREE.Mesh(new THREE.BoxGeometry(WALL_T, wallH, WORLD_D), M.wall());
+    rw.position.set(hw, wallY, 0);
+    rw.castShadow = true; rw.receiveShadow = true;
+    group.add(rw);
+
+    // Front facade — glass panels + frames (like the reference image)
+    const panelCount = 4;
+    const panelW = WORLD_W / panelCount;
+    for (let i = 0; i < panelCount; i++) {
+        const px = -hw + panelW * i + panelW / 2;
+        // Glass
+        const glass = new THREE.Mesh(
+            new THREE.BoxGeometry(panelW - 0.15, WINDOW_H, 0.08),
+            M.glass()
+        );
+        glass.position.set(px, floorY + 0.6 + WINDOW_H/2, hd - 0.04);
+        group.add(glass);
+        // Frame border (thin box outline)
+        const frame = new THREE.LineSegments(
+            new THREE.EdgesGeometry(glass.geometry),
+            M.edge()
+        );
+        frame.position.copy(glass.position);
+        group.add(frame);
+    }
+
+    // Solid strip above windows (lintel)
+    const lintel = new THREE.Mesh(
+        new THREE.BoxGeometry(WORLD_W, wallH - WINDOW_H - 0.6, WALL_T), M.wall()
+    );
+    lintel.position.set(0, floorY + WINDOW_H + 0.6 + (wallH - WINDOW_H - 0.6)/2, hd);
+    group.add(lintel);
+
+    // Solid strip below windows (sill)
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(WORLD_W, 0.6, WALL_T), M.wall());
+    sill.position.set(0, floorY + 0.3, hd);
+    group.add(sill);
+
+    // ── INTERIOR ROOM PARTITIONS from floor plan data
+    (floor.rooms || []).forEach(room => {
+        if (room.posX == null) return;
+        const tl  = toWorld(room.posX, room.posY);
+        const br  = toWorld(room.posX + room.width, room.posY + room.height);
+        const rw2 = Math.abs(br.x - tl.x), rd2 = Math.abs(br.z - tl.z);
+        const cx = (tl.x + br.x)/2, cz = (tl.z + br.z)/2;
+        const partH = STORY_H * 0.7;   // partitions don't go all the way to ceiling (open plan feel)
+        const partMat = M.wall(); partMat.opacity = 0.6; partMat.transparent = true;
+
+        // Just 2 thin partition lines per room (north & east edges only — avoids duplicate walls)
+        const pN = new THREE.Mesh(new THREE.BoxGeometry(rw2, partH, WALL_T*0.7), partMat);
+        pN.position.set(cx, floorY + partH/2, tl.z);
+        pN.castShadow = true;
+        group.add(pN);
+
+        const pE = new THREE.Mesh(new THREE.BoxGeometry(WALL_T*0.7, partH, rd2), partMat);
+        pE.position.set(br.x, floorY + partH/2, cz);
+        pE.castShadow = true;
+        group.add(pE);
+    });
+
+    scene.add(group);
+    return { group, baseY, level, floorId: floor.id, floorY };
+}
+
+// ───────────────────────────────────────────────────────────
+// ASSET BUILDERS  (same shapes as room editor — chair, table, box, cylinder)
+// ───────────────────────────────────────────────────────────
+function mkMat(color) { return new THREE.MeshStandardMaterial({ color, roughness:0.55 }); }
+
+function buildChair(color) {
+    const g = new THREE.Group(); const mat = mkMat(color);
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.07,0.6), mat); seat.position.y = 0.45; g.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.55,0.07), mat); back.position.set(0,0.75,-0.26); g.add(back);
+    [[-0.25,0.22,-0.25],[0.25,0.22,-0.25],[-0.25,0.22,0.25],[0.25,0.22,0.25]].forEach(([x,y,z]) => {
+        const l = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.44,8), mat); l.position.set(x,y,z); g.add(l);
+    });
+    return g;
+}
+function buildTable(color) {
+    const g = new THREE.Group(); const mat = mkMat(color);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(1.3,0.07,0.75), mat); top.position.y = 0.75; g.add(top);
+    [[-0.55,0.37,-0.3],[0.55,0.37,-0.3],[-0.55,0.37,0.3],[0.55,0.37,0.3]].forEach(([x,y,z]) => {
+        const l = new THREE.Mesh(new THREE.BoxGeometry(0.07,0.75,0.07), mat); l.position.set(x,y,z); g.add(l);
+    });
+    return g;
+}
+function buildBox(color, w=0.9, h=1.1, d=0.9) {
+    const g = new THREE.Group();
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mkMat(color)); m.position.y = h/2; g.add(m);
+    return g;
+}
+function buildCylinder(color) {
+    const g = new THREE.Group();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,1.15,16), mkMat(color)); m.position.y = 0.57; g.add(m);
+    return g;
+}
+
+function buildAsset(id, name, meta) {
+    const n = name.toLowerCase(); const color = assetColor(name);
+    let g = new THREE.Group();
+    g.userData = { id, name, floorId: meta.floorId, meta };
+
+    let modelUrl = null;
+    let modelScale = 1;
+    if (n.includes('air') || n.includes('ac ') || n.includes('conditioner') || n.includes('hvac')) {
+        modelUrl = '../../models/air_con.glb';
+        modelScale = 0.5;
+    } else if (n.includes('panel') || n.includes('electrical') || n.includes('transformer')) {
+        modelUrl = '../../models/industrial_electrical_and_panel_assembly_asset.glb';
+        modelScale = 0.5;
+    } else if (n.includes('extinguisher') || n.includes('fire ext')) {
+        modelUrl = '../../models/uploads_files_2406338_FireExtinguisher.gltf';
+        modelScale = 0.5;
+    } else if (n.includes('alarm') || n.includes('smoke')) {
+        modelUrl = '../../models/siemens_fire_alarm_low_poly.glb';
+        modelScale = 0.5;
+    } else if (n.includes('desk') || n.includes('pc')) {
+        modelUrl = '../../models/desk_and_pc.glb';
+        modelScale = 0.5;
+    }
+
+    if (modelUrl) {
+        // Temp placeholder
+        const placeholder = buildBox(color);
+        g.add(placeholder);
+
+        window.gltfLoader.load(modelUrl, (gltf) => {
+            g.remove(placeholder);
+            const model = gltf.scene;
+            
+            // Auto-center and place on floor
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            
+            // Normalize scale so the longest side is ~1.5 meters
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const s = 1.5 / maxDim;
+            model.scale.set(s, s, s);
+            
+            // Adjust position so origin is bottom center
+            model.position.set(-center.x * s, -box.min.y * s, -center.z * s);
+
+            const wrapper = new THREE.Group();
+            wrapper.add(model);
+            g.add(wrapper);
+
+            wrapper.traverse(c => {
+                if (c.isMesh) {
+                    c.castShadow = true; c.receiveShadow = true;
+                    c.userData = { ...g.userData, assetRoot: g };
+                    dragTargets.push(c);
+                }
+            });
+        }, undefined, (e) => console.error(e));
+    } else {
+        let prim;
+        if (n.includes('chair'))                            prim = buildChair(color);
+        else if (n.includes('table')||n.includes('desk'))   prim = buildTable(color);
+        else if (n.includes('extinguisher'))                prim = buildCylinder(color);
+        else                                                prim = buildBox(color);
+        
+        g.add(prim);
+        prim.traverse(c => {
+            if (c.isMesh) {
+                c.castShadow = true; c.receiveShadow = true;
+                c.userData = { ...g.userData, assetRoot: g };
+                dragTargets.push(c);
+            }
+        });
+    }
+
+    meta.group.add(g);
+    return g;
+}
+
+let isolatedFloorIdx = -1;
+
+function toggleIsolation(idx, chipElement) {
+    if (isolatedFloorIdx === idx) {
+        isolatedFloorIdx = -1;
+        document.querySelectorAll('.fchip').forEach(c => c.classList.remove('active'));
+        floorMeta.forEach(m => m.group.visible = true);
+    } else {
+        isolatedFloorIdx = idx;
+        document.querySelectorAll('.fchip').forEach(c => c.classList.remove('active'));
+        chipElement.classList.add('active');
+        floorMeta.forEach((m, i) => m.group.visible = (i === idx));
+    }
+}
+
+// ───────────────────────────────────────────────────────────
+// LOAD BUILDING
+// ───────────────────────────────────────────────────────────
+function loadBuilding(data) {
+    buildingData = data;
+    floorMeta.forEach(m => scene.remove(m.group));
+    floorMeta.length = 0;
+    dragTargets.length = 0;
+    isolatedFloorIdx = -1;
+    document.getElementById('floor-legend').innerHTML = '';
+
+    const floors = data.floors || [];
+
+    floors.forEach((floor, idx) => {
+        const meta = buildFloor(floor, idx);
+        floorMeta.push(meta);
+
+        // Floor label
+        const chip = document.createElement('div');
+        chip.className = 'fchip';
+        chip.textContent = floor.name || `Floor ${meta.level}`;
+        chip.onclick = () => toggleIsolation(idx, chip);
+        document.getElementById('floor-legend').prepend(chip);
+    });
+
+    // Recenter orbit
+    const totalH = floors.length * (STORY_H + SLAB_T);
+    orbit.target.set(0, totalH/2, 0);
+    camera.position.set(55, totalH + 25, 55);
+}
+
+// ───────────────────────────────────────────────────────────
+// DRAG & DROP
+// ───────────────────────────────────────────────────────────
+const raycaster  = new THREE.Raycaster();
+const mouse      = new THREE.Vector2();
+const dragPlane  = new THREE.Plane();
+const iPoint     = new THREE.Vector3();
+const dragOffset = new THREE.Vector3();
+let dragged = null;
+
+let verticalDragMode = false;
+document.getElementById('btn-vertical').addEventListener('click', (e) => {
+    verticalDragMode = !verticalDragMode;
+    const btn = e.target;
+    if (verticalDragMode) {
+        btn.classList.add('active');
+        btn.innerText = '↕️ Vertical: ON';
+    } else {
+        btn.classList.remove('active');
+        btn.innerText = '↕️ Vertical Drag';
+    }
+});
+
+let isVerticalDrag = false;
+
+function updateMouse(e) {
+    const r = renderer.domElement.getBoundingClientRect();
+    mouse.x =  ((e.clientX - r.left) / r.width ) * 2 - 1;
+    mouse.y = -((e.clientY - r.top ) / r.height) * 2 + 1;
+}
+
+renderer.domElement.tabIndex = 1;
+
+renderer.domElement.addEventListener('pointerdown', e => {
+    renderer.domElement.focus();
+    updateMouse(e);
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(dragTargets, false);
+    if (!hits.length) return;
+
+    const root = hits[0].object.userData.assetRoot;
+    if (!root) return;
+
+    dragged = root;
+    orbit.enabled = false;
+    renderer.domElement.setPointerCapture(e.pointerId);
+
+    isVerticalDrag = verticalDragMode || e.shiftKey || e.button === 2;
+
+    if (isVerticalDrag) {
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        const wp = new THREE.Vector3();
+        root.getWorldPosition(wp);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), wp);
+    } else {
+        const meta = root.userData.meta;
+        const worldFloorY = meta.group.position.y + root.position.y;
+        dragPlane.set(new THREE.Vector3(0,1,0), -worldFloorY);
+    }
+
+    raycaster.ray.intersectPlane(dragPlane, iPoint);
+    const wp = new THREE.Vector3();
+    root.getWorldPosition(wp);
+    dragOffset.copy(wp).sub(iPoint);
+});
+
+renderer.domElement.addEventListener('pointermove', e => {
+    if (!dragged) return;
+    updateMouse(e);
+    
+    const wantsVertical = verticalDragMode || e.shiftKey || e.buttons === 2;
+    if (isVerticalDrag !== wantsVertical) {
+        isVerticalDrag = wantsVertical;
+        if (isVerticalDrag) {
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            const wp = new THREE.Vector3();
+            dragged.getWorldPosition(wp);
+            dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), wp);
+        } else {
+            const meta = dragged.userData.meta;
+            const worldFloorY = meta.group.position.y + dragged.position.y;
+            dragPlane.set(new THREE.Vector3(0,1,0), -worldFloorY);
+        }
+        raycaster.setFromCamera(mouse, camera);
+        raycaster.ray.intersectPlane(dragPlane, iPoint);
+        const wp = new THREE.Vector3();
+        dragged.getWorldPosition(wp);
+        dragOffset.copy(wp).sub(iPoint);
+    }
+    
+    raycaster.setFromCamera(mouse, camera);
+    if (!raycaster.ray.intersectPlane(dragPlane, iPoint)) return;
+
+    if (isVerticalDrag) {
+        const targetWorldY = iPoint.y + dragOffset.y;
+        const meta = dragged.userData.meta;
+        dragged.position.y = targetWorldY - meta.group.position.y;
+    } else {
+        const lim = { x: WORLD_W/2 - 0.5, z: WORLD_D/2 - 0.5 };
+        // The local position in XZ is same as world since floors don't move in XZ
+        const targetWorldX = iPoint.x + dragOffset.x;
+        const targetWorldZ = iPoint.z + dragOffset.z;
+        const wx = Math.max(-lim.x, Math.min(lim.x, targetWorldX));
+        const wz = Math.max(-lim.z, Math.min(lim.z, targetWorldZ));
+        dragged.position.set(wx, dragged.position.y, wz);
+    }
+});
+
+const onUp = () => {
+    if (!dragged) return;
+    const f = fromWorld(dragged.position.x, dragged.position.z);
+    notifyFlutter({ type:'asset_moved', id:dragged.userData.id, floorId:dragged.userData.floorId, x:f.x, z:f.z });
+    dragged = null;
+    orbit.enabled = true;
+};
+renderer.domElement.addEventListener('pointerup', onUp);
+renderer.domElement.addEventListener('pointercancel', onUp);
+
+// ───────────────────────────────────────────────────────────
+// EXPLODE ANIMATION (pure rAF tween, no lib needed)
+// ───────────────────────────────────────────────────────────
+const tweens = [];
+function tweenTo(group, targetY) {
+    const startY = group.position.y, t0 = performance.now();
+    tweens.push({ group, startY, targetY, t0, dur: 900 });
+}
+function tickTweens(now) {
+    for (let i = tweens.length-1; i >= 0; i--) {
+        const t = tweens[i];
+        const p = Math.min((now-t.t0)/t.dur, 1);
+        const e = p < 0.5 ? 4*p*p*p : 1-Math.pow(-2*p+2,3)/2;
+        t.group.position.y = t.startY + (t.targetY - t.startY)*e;
+        if (p >= 1) tweens.splice(i, 1);
+    }
+}
+
+document.getElementById('btn-explode').addEventListener('click', () => {
+    if (isExploded) return; isExploded = true;
+    document.getElementById('btn-stack').classList.remove('active');
+    document.getElementById('btn-explode').classList.add('active');
+    floorMeta.forEach(m => tweenTo(m.group, m.baseY + m.level * GAP_EXPLODE));
+});
+document.getElementById('btn-stack').addEventListener('click', () => {
+    if (!isExploded) return; isExploded = false;
+    document.getElementById('btn-explode').classList.remove('active');
+    document.getElementById('btn-stack').classList.add('active');
+    floorMeta.forEach(m => tweenTo(m.group, m.baseY));
+});
+
+// ───────────────────────────────────────────────────────────
+// FLUTTER BRIDGE
+// ───────────────────────────────────────────────────────────
+function notifyFlutter(p) {
+    const s = JSON.stringify(p);
+    if (window.FlutterChannel) { window.FlutterChannel.postMessage(s); return; }
+    window.parent.postMessage(s, '*');
+}
+window.addEventListener('message', e => {
+    try {
+        const m = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (m.type === 'load_building') loadBuilding(m.data);
+        if (m.type === 'add_asset') {
+            const meta = floorMeta.find(f => f.floorId === m.floorId);
+            if (!meta) return;
+            const g = buildAsset(m.id, m.name, meta);
+            const w = toWorld(m.x ?? PLAN_W/2, m.z ?? PLAN_D/2);
+            g.position.set(w.x, meta.floorY, w.z);
+        }
+    } catch (_) {}
+});
+
+// ───────────────────────────────────────────────────────────
+// RESIZE + LOOP
+// ───────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+});
+
+(function loop(now) {
+    requestAnimationFrame(loop);
+    tickTweens(now);
+    orbit.update();
+    renderer.render(scene, camera);
+})(0);
+
+notifyFlutter({ type:'engine_ready' });
+</script>
+</body>
+</html>
