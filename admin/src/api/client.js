@@ -2,7 +2,8 @@ import axios from 'axios'
 import { auth } from '../firebase'
 
 const api = axios.create({
-  baseURL: 'http://localhost:5294/api',
+  // baseURL: 'http://localhost:5294/api',
+  baseURL: 'https://management.ermarscastar.in/api',
   headers: { 'Content-Type': 'application/json' },
 })
 
