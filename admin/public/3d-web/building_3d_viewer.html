@@ -168,7 +168,8 @@ let   isExploded   = false;
 // BUILD A SINGLE STOREY
 // ───────────────────────────────────────────────────────────
 function buildFloor(floor, index) {
-    const level  = floor.floorNumber ?? index;
+    // Use index to guarantee every floor stacks above the previous one, ignoring bad database floorNumbers
+    const level  = index;
     const baseY  = level * (STORY_H + SLAB_T);
     const group  = new THREE.Group();
     group.position.y = baseY;

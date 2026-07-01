@@ -220,18 +220,6 @@ public class AssetsController : ControllerBase
         return Ok($"Seeded {added} categories in hierarchy.");
     }
 
-    [HttpPut("{id}/position")]
-    public async Task<IActionResult> UpdatePosition(string id, [FromBody] AssetPositionDto dto)
-    {
-        var asset = await _context.Assets.FindAsync(id);
-        if (asset == null) return NotFound("Asset not found.");
-
-        asset.AssetPosX = dto.AssetPosX;
-        asset.AssetPosY = dto.AssetPosY;
-        
-        await _context.SaveChangesAsync();
-        return Ok(asset);
-    }
 }
 
 public class AssetPositionDto
