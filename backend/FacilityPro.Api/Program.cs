@@ -53,8 +53,13 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Serve uploaded files (e.g. /uploads/abc123.jpg)
-app.UseStaticFiles();
+// Serve uploaded files (e.g. /uploads/abc123.jpg and .apk)
+var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+provider.Mappings[".apk"] = "application/vnd.android.package-archive";
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = provider
+});
 
 app.UseCors("AllowAll");
 app.UseAuthentication();
