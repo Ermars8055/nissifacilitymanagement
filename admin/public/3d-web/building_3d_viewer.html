@@ -317,19 +317,19 @@ function buildAsset(id, name, meta) {
     let modelUrl = null;
     let modelScale = 1;
     if (n.includes('air') || n.includes('ac ') || n.includes('conditioner') || n.includes('hvac')) {
-        modelUrl = '../../models/air_con.glb';
+        modelUrl = '../models/air_con.glb';
         modelScale = 0.5;
     } else if (n.includes('panel') || n.includes('electrical') || n.includes('transformer')) {
-        modelUrl = '../../models/industrial_electrical_and_panel_assembly_asset.glb';
+        modelUrl = '../models/industrial_electrical_and_panel_assembly_asset.glb';
         modelScale = 0.5;
     } else if (n.includes('extinguisher') || n.includes('fire ext')) {
-        modelUrl = '../../models/uploads_files_2406338_FireExtinguisher.gltf';
+        modelUrl = '../models/uploads_files_2406338_FireExtinguisher.gltf';
         modelScale = 0.5;
     } else if (n.includes('alarm') || n.includes('smoke')) {
-        modelUrl = '../../models/siemens_fire_alarm_low_poly.glb';
+        modelUrl = '../models/siemens_fire_alarm_low_poly.glb';
         modelScale = 0.5;
     } else if (n.includes('desk') || n.includes('pc')) {
-        modelUrl = '../../models/desk_and_pc.glb';
+        modelUrl = '../models/desk_and_pc.glb';
         modelScale = 0.5;
     }
 
