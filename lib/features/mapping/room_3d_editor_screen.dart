@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/network/api_client.dart';
-
 // Web-only imports
 import 'room_3d_editor_web.dart' if (dart.library.io) 'room_3d_editor_stub.dart';
 
@@ -22,12 +22,40 @@ class _Room3DEditorScreenState extends State<Room3DEditorScreen> {
 
   // The view ID registered for HtmlElementView (web only)
   String? _webViewId;
+  WebViewController? _mobileWebViewController;
 
   @override
   void initState() {
     super.initState();
     if (kIsWeb) {
       _webViewId = registerEditorIframe(_onEngineMessageReceived);
+    } else {
+      _mobileWebViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0xFF111827))
+        ..addJavaScriptChannel(
+          'FlutterChannel',
+          onMessageReceived: (JavaScriptMessage message) {
+            _onEngineMessageReceived(message.message);
+          },
+        )
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageFinished: (String url) {
+              _mobileWebViewController?.runJavaScript('''
+                window.parent.postMessage = function(message, targetOrigin) {
+                  FlutterChannel.postMessage(message);
+                };
+                window.postMessage = function(message, targetOrigin) {
+                  if (typeof message === 'string') {
+                    FlutterChannel.postMessage(message);
+                  }
+                };
+              ''');
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse('https://management.ermarscastar.in/3d-web/3d_editor.html'));
     }
     _fetchRoomData();
   }
@@ -80,8 +108,11 @@ class _Room3DEditorScreenState extends State<Room3DEditorScreen> {
   }
 
   void _sendToEngine(String id, String name, double x, double z) {
+    final msg = jsonEncode({'type': 'add_asset', 'id': id, 'name': name, 'x': x, 'z': z});
     if (kIsWeb) {
-      sendMessageToIframe(_webViewId!, jsonEncode({'type': 'add_asset', 'id': id, 'name': name, 'x': x, 'z': z}));
+      sendMessageToIframe(_webViewId!, msg);
+    } else {
+      _mobileWebViewController?.runJavaScript("window.dispatchEvent(new MessageEvent('message', {data: $msg}));");
     }
   }
 
@@ -139,13 +170,9 @@ class _Room3DEditorScreenState extends State<Room3DEditorScreen> {
                       child: HtmlElementView(viewType: _webViewId!),
                     ),
                   )
-                : const Center(
-                    child: Text(
-                      'This 3D view is available on the Web dashboard.\nAPK build coming soon.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white54),
-                    ),
-                  ),
+                : _mobileWebViewController != null
+                    ? WebViewWidget(controller: _mobileWebViewController!)
+                    : const Center(child: CircularProgressIndicator()),
           ),
 
           // Unplaced assets tray

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/network/api_client.dart';
 
 import 'building_3d_viewer_web.dart' if (dart.library.io) 'building_3d_viewer_stub.dart';
@@ -20,12 +21,40 @@ class _Building3DViewerScreenState extends State<Building3DViewerScreen> {
   // All assets keyed by floorId
   final Map<String, List<dynamic>> _floorAssets = {};
   String? _webViewId;
+  WebViewController? _mobileWebViewController;
 
   @override
   void initState() {
     super.initState();
     if (kIsWeb) {
       _webViewId = registerBuildingIframe(_onEngineMessage);
+    } else {
+      _mobileWebViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0xFF111827))
+        ..addJavaScriptChannel(
+          'FlutterChannel',
+          onMessageReceived: (JavaScriptMessage message) {
+            _onEngineMessage(message.message);
+          },
+        )
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageFinished: (String url) {
+              _mobileWebViewController?.runJavaScript('''
+                window.parent.postMessage = function(message, targetOrigin) {
+                  FlutterChannel.postMessage(message);
+                };
+                window.postMessage = function(message, targetOrigin) {
+                  if (typeof message === 'string') {
+                    FlutterChannel.postMessage(message);
+                  }
+                };
+              ''');
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse('https://management.ermarscastar.in/3d-web/building_3d_viewer.html'));
     }
     _fetchAll();
   }
@@ -83,34 +112,38 @@ class _Building3DViewerScreenState extends State<Building3DViewerScreen> {
   }
 
   void _sendBuildingToEngine() {
-    if (!kIsWeb || _webViewId == null || building == null) return;
-    sendToBuildingIframe(
-      _webViewId!,
-      jsonEncode({'type': 'load_building', 'data': building}),
-    );
+    if (building == null) return;
+    
+    final msg = jsonEncode({'type': 'load_building', 'data': building});
+    if (kIsWeb && _webViewId != null) {
+      sendToBuildingIframe(_webViewId!, msg);
+    } else if (!kIsWeb && _mobileWebViewController != null) {
+      _mobileWebViewController?.runJavaScript("window.dispatchEvent(new MessageEvent('message', {data: $msg}));");
+    }
+
     // Inject placed assets after a short delay to let engine parse the building
     Future.delayed(const Duration(milliseconds: 500), _injectAssets);
   }
 
   void _injectAssets() {
-    if (!kIsWeb || _webViewId == null) return;
     final floors = (building?['floors'] as List<dynamic>? ?? []);
     for (final floor in floors) {
       final floorId = floor['id'] as String;
       final assets = _floorAssets[floorId] ?? [];
       for (final asset in assets) {
-        if (asset['assetPosX'] != null && asset['assetPosY'] != null) {
-          sendToBuildingIframe(
-            _webViewId!,
-            jsonEncode({
-              'type': 'add_asset',
-              'id': asset['id'],
-              'name': asset['name'],
-              'floorId': floorId,
-              'x': asset['assetPosX'],
-              'z': asset['assetPosY'],
-            }),
-          );
+        final msg = jsonEncode({
+          'type': 'add_asset',
+          'id': asset['id'],
+          'name': asset['name'],
+          'floorId': floorId,
+          'x': asset['assetPosX'],
+          'z': asset['assetPosY'],
+        });
+        
+        if (kIsWeb && _webViewId != null) {
+          sendToBuildingIframe(_webViewId!, msg);
+        } else if (!kIsWeb && _mobileWebViewController != null) {
+          _mobileWebViewController?.runJavaScript("window.dispatchEvent(new MessageEvent('message', {data: $msg}));");
         }
       }
     }
@@ -155,13 +188,9 @@ class _Building3DViewerScreenState extends State<Building3DViewerScreen> {
                 child: HtmlElementView(viewType: _webViewId!),
               ),
             )
-          : const Center(
-              child: Text(
-                'Building 3D Stack is available on the Web Dashboard.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
+          : _mobileWebViewController != null
+              ? WebViewWidget(controller: _mobileWebViewController!)
+              : const Center(child: CircularProgressIndicator()),
     );
   }
 }
