@@ -28,6 +28,7 @@ import '../../features/complaints/complaint_details_screen.dart';
 import '../../features/checklists/checklist_library_screen.dart';
 import '../../features/scheduler/scheduler_dashboard_screen.dart';
 import '../../features/qr/qr_dashboard_screen.dart';
+import '../../features/qr/asset_scan_result_screen.dart';
 import '../../features/work_orders/work_order_list_screen.dart';
 import '../../features/maintenance/pm_dashboard_screen.dart';
 import '../../features/housekeeping/housekeeping_dashboard_screen.dart';
@@ -232,6 +233,7 @@ class AppRouter {
       GoRoute(path: '/checklists', builder: (context, state) => const ChecklistLibraryScreen()),
       GoRoute(path: '/scheduler', builder: (context, state) => const SchedulerDashboardScreen()),
       GoRoute(path: '/qr', builder: (context, state) => const QrDashboardScreen()),
+      GoRoute(path: '/qr/asset/:code', builder: (context, state) => AssetScanResultScreen(qrCode: state.pathParameters['code']!)),
       GoRoute(path: '/work-orders', builder: (context, state) => const WorkOrderListScreen()),
       GoRoute(path: '/pm', builder: (context, state) => const PmDashboardScreen()),
       GoRoute(path: '/housekeeping', builder: (context, state) => const HousekeepingDashboardScreen()),
