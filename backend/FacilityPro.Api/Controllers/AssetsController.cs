@@ -73,6 +73,35 @@ public class AssetsController : ControllerBase
         if (asset == null) return NotFound();
         return Ok(asset);
     }
+    [HttpGet("by-qr/{qrCode}")]
+    public async Task<IActionResult> GetAssetByQr(string qrCode)
+    {
+        var asset = await _context.Assets
+            .Include(a => a.Category)
+            .Include(a => a.Room)
+            .Include(a => a.Building)
+            .FirstOrDefaultAsync(a => a.QrCode == qrCode);
+            
+        if (asset == null) return NotFound("Asset not found for this QR code");
+
+        var tasks = await _context.Tasks
+            .Where(t => t.EntityType == "Asset" && t.EntityId == asset.Id)
+            .OrderByDescending(t => t.ScheduledTime)
+            .Take(10)
+            .ToListAsync();
+
+        return Ok(new {
+            Asset = new {
+                asset.Id, asset.Name, asset.SerialNumber, asset.QrCode, asset.Status,
+                Category = asset.Category?.Name,
+                Room = asset.Room?.Name,
+                Building = asset.Building?.Name
+            },
+            Tasks = tasks.Select(t => new {
+                t.Id, t.Title, t.Status, t.ScheduledTime, t.CompletedTime, t.AssignedToName
+            })
+        });
+    }
 
     [HttpPost]
     public async Task<IActionResult> CreateAsset([FromBody] Asset asset)

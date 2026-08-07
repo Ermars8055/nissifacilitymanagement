@@ -30,7 +30,11 @@ class _QrDashboardScreenState extends State<QrDashboardScreen> {
         _lastScanned = result;
         _lastScannedAt = DateTime.now();
       });
-      _showResultSheet(result);
+      if (result.startsWith('QR-AST-')) {
+        context.push('/qr/asset/$result');
+      } else {
+        _showResultSheet(result);
+      }
     }
   }
 
