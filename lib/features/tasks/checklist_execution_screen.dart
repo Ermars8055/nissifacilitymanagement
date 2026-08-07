@@ -215,7 +215,14 @@ class _ChecklistExecutionScreenState extends State<ChecklistExecutionScreen> {
                 ),
                 const SizedBox(height: 28),
                 GestureDetector(
-                  onTap: () { Navigator.of(context).pop(); context.go('/tasks'); },
+                  onTap: () {
+                    Navigator.of(context).pop(); // pop dialog
+                    if (context.canPop()) {
+                      context.pop(true); // pop screen
+                    } else {
+                      context.go('/tasks');
+                    }
+                  },
                   child: Container(
                     width: double.infinity,
                     height: 52,
