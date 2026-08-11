@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../core/network/api_client.dart';
 import '../../core/services/session_service.dart';
 import '../../core/session/session_manager.dart';
 import '../attendance/attendance_checkin_screen.dart';
@@ -16,25 +18,89 @@ class QrDashboardScreen extends StatefulWidget {
 class _QrDashboardScreenState extends State<QrDashboardScreen> {
   String? _lastScanned;
   DateTime? _lastScannedAt;
+  bool _isLocating = false;
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: Colors.red.shade800,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
 
   Future<void> _openScanner() async {
-    final result = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => const QrScannerScreen(title: 'Scan QR Code'),
-        fullscreenDialog: true,
-      ),
-    );
-    if (result != null && mounted) {
-      HapticFeedback.mediumImpact();
-      setState(() {
-        _lastScanned = result;
-        _lastScannedAt = DateTime.now();
-      });
-      if (result.startsWith('QR-AST-')) {
-        context.push('/qr/asset/$result');
-      } else {
-        _showResultSheet(result);
+    if (_isLocating) return;
+
+    final buildingId = SessionManager().selectedBuildingId;
+    if (buildingId == null) {
+      _showError('No building selected');
+      return;
+    }
+
+    setState(() => _isLocating = true);
+
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
       }
+      if (perm == LocationPermission.deniedForever || perm == LocationPermission.denied) {
+        _showError('Location permission required to scan.');
+        return;
+      }
+
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _showError('Please enable Location Services.');
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+
+      if (position.isMocked) {
+        _showError('Fake GPS detected! Cannot scan.');
+        return;
+      }
+
+      final bRes = await ApiClient.get('/Hierarchy/building/$buildingId');
+      final targetLat = bRes['targetLat'] as double?;
+      final targetLng = bRes['targetLng'] as double?;
+
+      if (targetLat != null && targetLng != null && targetLat != 0 && targetLng != 0) {
+        final dist = Geolocator.distanceBetween(position.latitude, position.longitude, targetLat, targetLng);
+        if (dist > 200) {
+          _showError('You must be within 200m of the building to scan.\nCurrent distance: ${dist.toStringAsFixed(0)}m');
+          return;
+        }
+      }
+
+      if (!mounted) return;
+      final result = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => const QrScannerScreen(title: 'Scan QR Code'),
+          fullscreenDialog: true,
+        ),
+      );
+      
+      if (result != null && mounted) {
+        HapticFeedback.mediumImpact();
+        setState(() {
+          _lastScanned = result;
+          _lastScannedAt = DateTime.now();
+        });
+        
+        // Always go to the asset context screen!
+        context.push('/qr/asset/$result');
+      }
+    } catch (e) {
+      _showError('Location verification failed');
+    } finally {
+      if (mounted) setState(() => _isLocating = false);
     }
   }
 

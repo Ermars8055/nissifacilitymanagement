@@ -90,6 +90,12 @@ public class AssetsController : ControllerBase
             .Take(10)
             .ToListAsync();
 
+        var checklists = await _context.ChecklistMappings
+            .Where(m => m.AssetId == asset.Id || (asset.RoomId != null && m.RoomId == asset.RoomId))
+            .Select(m => new { m.ChecklistId, m.ChecklistName })
+            .Distinct()
+            .ToListAsync();
+
         return Ok(new {
             Asset = new {
                 asset.Id, asset.Name, asset.SerialNumber, asset.QrCode, asset.Status,
@@ -99,7 +105,8 @@ public class AssetsController : ControllerBase
             },
             Tasks = tasks.Select(t => new {
                 t.Id, t.Title, t.Status, t.ScheduledTime, t.CompletedTime, t.AssignedToName
-            })
+            }),
+            Checklists = checklists
         });
     }
 
