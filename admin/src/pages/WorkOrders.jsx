@@ -10,7 +10,7 @@ const STATUS_STYLE = {
 }
 const FILTERS = ['All', 'Pending', 'In Progress', 'Completed', 'Missed']
 
-function DetailDrawer({ task, onClose, onUpdate }) {
+function DetailDrawer({ task, checklists, onClose, onUpdate }) {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -23,6 +23,10 @@ function DetailDrawer({ task, onClose, onUpdate }) {
     } catch (_) {}
     setSaving(false)
   }
+
+  const assignedChecklist = task.checklistTemplateId 
+    ? checklists.find(c => c.id === task.checklistTemplateId) 
+    : null;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-end z-50" onClick={onClose}>
@@ -55,6 +59,12 @@ function DetailDrawer({ task, onClose, onUpdate }) {
               <Clock size={14} className="text-gray-400 flex-shrink-0" />
               <span>Scheduled: {new Date(task.scheduledTime).toLocaleString()}</span>
             </div>
+            {assignedChecklist && (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <ClipboardList size={14} className="text-brand-600 flex-shrink-0" />
+                <span className="font-medium text-brand-700">Checklist: {assignedChecklist.name}</span>
+              </div>
+            )}
             {task.completedTime && (
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />
@@ -109,19 +119,21 @@ export default function WorkOrders() {
   const [selected, setSelected] = useState(null)
   const [users, setUsers] = useState([])
   const [buildings, setBuildings] = useState([])
-  const [form, setForm] = useState({ title: '', description: '', assignedToId: '', assignedToName: '', entityName: '', entityType: 'Room', buildingId: '', scheduledTime: '' })
+  const [checklists, setChecklists] = useState([])
+  const [form, setForm] = useState({ title: '', description: '', assignedToId: '', assignedToName: '', entityName: '', entityType: 'Room', buildingId: '', scheduledTime: '', checklistTemplateId: '' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
     try {
-      const [tr, ur, br] = await Promise.all([
-        api.get('/Tasks'), api.get('/Users'), api.get('/Hierarchy/all-buildings'),
+      const [tr, ur, br, cr] = await Promise.all([
+        api.get('/Tasks'), api.get('/Users'), api.get('/Hierarchy/all-buildings'), api.get('/Checklists')
       ])
       setTasks(tr.data)
       setUsers(ur.data)
       setBuildings(br.data)
+      setChecklists(cr.data)
     } catch (_) {}
     setLoading(false)
   }
@@ -140,11 +152,12 @@ export default function WorkOrders() {
         entityType: form.entityType,
         buildingId: form.buildingId,
         scheduledTime: form.scheduledTime,
+        checklistTemplateId: form.checklistTemplateId,
         status: 'Pending',
       }
       await api.post('/Tasks', payload)
       setShowForm(false)
-      setForm({ title: '', description: '', assignedToId: '', assignedToName: '', entityName: '', entityType: 'Room', buildingId: '', scheduledTime: '' })
+      setForm({ title: '', description: '', assignedToId: '', assignedToName: '', entityName: '', entityType: 'Room', buildingId: '', scheduledTime: '', checklistTemplateId: '' })
       fetchAll()
     } catch (_) {}
     setSaving(false)
@@ -217,6 +230,13 @@ export default function WorkOrders() {
               <input required className="input" placeholder="e.g. Washroom A, HVAC Unit 1" value={form.entityName} onChange={e => setForm(f => ({ ...f, entityName: e.target.value }))} />
             </div>
             <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Checklist (Optional)</label>
+              <select className="input" value={form.checklistTemplateId || ''} onChange={e => setForm(f => ({ ...f, checklistTemplateId: e.target.value }))}>
+                <option value="">No Checklist</option>
+                {checklists.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Scheduled Time *</label>
               <input required type="datetime-local" className="input" value={form.scheduledTime} onChange={e => setForm(f => ({ ...f, scheduledTime: e.target.value }))} />
             </div>
@@ -264,7 +284,7 @@ export default function WorkOrders() {
       )}
 
       {selected && (
-        <DetailDrawer task={selected} onClose={() => setSelected(null)} onUpdate={fetchAll} />
+        <DetailDrawer task={selected} checklists={checklists} onClose={() => setSelected(null)} onUpdate={fetchAll} />
       )}
     </div>
   )

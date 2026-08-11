@@ -135,7 +135,7 @@ function AssignModal({ template, buildings, onClose, onAssigned }) {
     setSelectedEntity(null)
     try {
       if (type === 'Room') {
-        const res = await api.get(`/Hierarchy/building/${bId}`)
+        const res = await api.get(`/Hierarchy/building/${bId}/full`)
         const building = res.data
         const rooms = (building.floors || []).flatMap(f =>
           (f.rooms || []).map(r => ({ id: r.id, name: `${f.name} → ${r.name}`, type: 'Room' }))

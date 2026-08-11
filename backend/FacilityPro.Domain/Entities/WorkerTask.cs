@@ -11,6 +11,7 @@ public class WorkerTask
     public string EntityType { get; set; } = string.Empty; // "Building", "Floor", "Room", "Asset"
     public string EntityName { get; set; } = string.Empty; // Denormalized name for UI
     public string BuildingId { get; set; } = string.Empty; // To associate task directly with a building
+    public string? ChecklistTemplateId { get; set; } // The checklist template assigned to this task
     
     // Assignment
     public string AssignedToId { get; set; } = string.Empty; // User ID
