@@ -17,6 +17,7 @@ class _AssetScanResultScreenState extends State<AssetScanResultScreen> {
   String? _error;
   Map<String, dynamic>? _asset;
   List<dynamic> _tasks = [];
+  List<dynamic> _checklists = [];
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _AssetScanResultScreenState extends State<AssetScanResultScreen> {
         setState(() {
           _asset = response['asset'];
           _tasks = response['tasks'] ?? [];
+          _checklists = response['checklists'] ?? [];
           _isLoading = false;
         });
       } else {
@@ -110,6 +112,14 @@ class _AssetScanResultScreenState extends State<AssetScanResultScreen> {
         children: [
           _buildAssetHeader(),
           const SizedBox(height: 24),
+          
+          if (_checklists.isNotEmpty) ...[
+            const Text("Assigned Checklists", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
+            const SizedBox(height: 12),
+            ..._checklists.map((c) => _buildChecklistCard(c)).toList(),
+            const SizedBox(height: 24),
+          ],
+
           if (todayTasks.isNotEmpty) ...[
             const Text("Today's Tasks", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
             const SizedBox(height: 12),
@@ -123,6 +133,33 @@ class _AssetScanResultScreenState extends State<AssetScanResultScreen> {
           else
             ...historyTasks.map((t) => _buildTaskCard(t, false)).toList(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildChecklistCard(Map<String, dynamic> checklist) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF2D6B4F).withOpacity(0.3)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xFFEBF2ED), borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF2D6B4F), size: 22),
+        ),
+        title: Text(checklist['checklistName'] ?? 'Unnamed Checklist', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
+        subtitle: const Text('Tap to execute checklist now', style: TextStyle(fontSize: 12, color: Color(0xFF8C8278))),
+        trailing: const Icon(Icons.play_circle_fill_rounded, color: Color(0xFF2D6B4F), size: 28),
+        onTap: () {
+          // Pass checklist ID directly to checklist execution screen
+          context.push('/tasks/checklist/new?templateId=${checklist['checklistId']}&entityId=${_asset!['id']}&entityType=Asset&entityName=${_asset!['name']}');
+        },
       ),
     );
   }
