@@ -120,8 +120,29 @@ export default function WorkOrders() {
   const [users, setUsers] = useState([])
   const [buildings, setBuildings] = useState([])
   const [checklists, setChecklists] = useState([])
-  const [form, setForm] = useState({ title: '', description: '', assignedToId: '', assignedToName: '', entityName: '', entityType: 'Room', buildingId: '', scheduledTime: '', checklistTemplateId: '' })
+  const [form, setForm] = useState({ title: '', description: '', assignedToId: '', assignedToName: '', entityId: '', entityName: '', entityType: 'Room', buildingId: '', scheduledTime: '', checklistTemplateId: '' })
   const [saving, setSaving] = useState(false)
+  const [entities, setEntities] = useState([])
+  const [loadingEntities, setLoadingEntities] = useState(false)
+
+  async function loadEntities(bId, type) {
+    if (!bId) { setEntities([]); return }
+    setLoadingEntities(true)
+    try {
+      if (type === 'Room') {
+        const res = await api.get(`/Hierarchy/building/${bId}/full`)
+        const building = res.data
+        const rooms = (building.floors || []).flatMap(f =>
+          (f.rooms || []).map(r => ({ id: r.id, name: `${f.name} → ${r.name}`, type: 'Room' }))
+        )
+        setEntities(rooms)
+      } else {
+        const res = await api.get(`/Assets/building/${bId}`)
+        setEntities((res.data || []).map(a => ({ id: a.id, name: a.name, type: 'Asset' })))
+      }
+    } catch (_) { setEntities([]) }
+    setLoadingEntities(false)
+  }
 
   useEffect(() => { fetchAll() }, [])
 
@@ -147,7 +168,7 @@ export default function WorkOrders() {
         description: form.description,
         assignedToId: form.assignedToId,
         assignedToName: form.assignedToName,
-        entityId: form.buildingId,
+        entityId: form.entityId,
         entityName: form.entityName,
         entityType: form.entityType,
         buildingId: form.buildingId,
@@ -157,7 +178,7 @@ export default function WorkOrders() {
       }
       await api.post('/Tasks', payload)
       setShowForm(false)
-      setForm({ title: '', description: '', assignedToId: '', assignedToName: '', entityName: '', entityType: 'Room', buildingId: '', scheduledTime: '', checklistTemplateId: '' })
+      setForm({ title: '', description: '', assignedToId: '', assignedToName: '', entityId: '', entityName: '', entityType: 'Room', buildingId: '', scheduledTime: '', checklistTemplateId: '' })
       fetchAll()
     } catch (_) {}
     setSaving(false)
@@ -220,14 +241,37 @@ export default function WorkOrders() {
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Building *</label>
-              <select required className="input" value={form.buildingId} onChange={e => setForm(f => ({ ...f, buildingId: e.target.value }))}>
+              <select required className="input" value={form.buildingId} onChange={e => {
+                const bId = e.target.value;
+                setForm(f => ({ ...f, buildingId: bId, entityId: '', entityName: '' }));
+                loadEntities(bId, form.entityType);
+              }}>
                 <option value="">Select building</option>
                 {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Location Name *</label>
-              <input required className="input" placeholder="e.g. Washroom A, HVAC Unit 1" value={form.entityName} onChange={e => setForm(f => ({ ...f, entityName: e.target.value }))} />
+            <div className="flex gap-2">
+              <div className="w-1/3">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Type *</label>
+                <select className="input" value={form.entityType} onChange={e => {
+                  const type = e.target.value;
+                  setForm(f => ({ ...f, entityType: type, entityId: '', entityName: '' }));
+                  loadEntities(form.buildingId, type);
+                }}>
+                  <option value="Room">Room</option>
+                  <option value="Asset">Asset</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Location / Asset *</label>
+                <select required className="input" value={form.entityId} disabled={loadingEntities || !form.buildingId} onChange={e => {
+                  const ent = entities.find(x => x.id === e.target.value);
+                  setForm(f => ({ ...f, entityId: e.target.value, entityName: ent ? ent.name : '' }));
+                }}>
+                  <option value="">{loadingEntities ? 'Loading...' : 'Select location'}</option>
+                  {entities.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
+                </select>
+              </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Checklist (Optional)</label>
