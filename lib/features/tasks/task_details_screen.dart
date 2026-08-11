@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/session/session_manager.dart';
 import '../qr/qr_scanner_screen.dart';
@@ -85,6 +86,75 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen>
   }
 
   Future<void> _startWithQrScan() async {
+    // 1. Geolocator validation
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location services are disabled.'), backgroundColor: Color(0xFF9B2020)));
+      }
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permissions are denied.'), backgroundColor: Color(0xFF9B2020)));
+        }
+        return;
+      }
+    }
+    
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permissions are permanently denied.'), backgroundColor: Color(0xFF9B2020)));
+      }
+      return;
+    }
+
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 15)),
+      );
+
+      if (position.isMocked) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fake GPS detected! Cannot scan.'), backgroundColor: Color(0xFF9B2020)));
+        }
+        return;
+      }
+
+      final buildingId = task?['buildingId'] as String?;
+      if (buildingId != null && buildingId.isNotEmpty) {
+        final bRes = await ApiClient.get('/Hierarchy/building/$buildingId');
+        final targetLat = bRes['targetLat'] as double?;
+        final targetLng = bRes['targetLng'] as double?;
+
+        if (targetLat != null && targetLng != null && targetLat != 0 && targetLng != 0) {
+          final dist = Geolocator.distanceBetween(position.latitude, position.longitude, targetLat, targetLng);
+          if (dist > 200) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('You must be within 200m of the building to scan.\nCurrent distance: ${dist.toStringAsFixed(0)}m'),
+                backgroundColor: const Color(0xFF9B2020),
+                duration: const Duration(seconds: 4),
+              ));
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to get location. Please try again.'), backgroundColor: Color(0xFF9B2020)));
+      }
+      return;
+    }
+
     final entityQr = task?['entityQrCode'] as String?;
     final scanned = await Navigator.of(context).push<String>(
       MaterialPageRoute(
