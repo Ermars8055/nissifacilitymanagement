@@ -440,7 +440,7 @@ class _ChecklistExecutionScreenState extends State<ChecklistExecutionScreen> {
                       child: isSubmitting
                           ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : Text(
-                              'Submit Checklist',
+                              'Mark Task Complete',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
