@@ -138,7 +138,11 @@ export default function WorkOrders() {
         setEntities(rooms)
       } else {
         const res = await api.get(`/Assets/building/${bId}`)
-        setEntities((res.data || []).map(a => ({ id: a.id, name: a.name, type: 'Asset' })))
+        setEntities((res.data || []).map(a => ({ 
+          id: a.id, 
+          name: a.room ? `${a.name} (${a.room.name})` : a.name, 
+          type: 'Asset' 
+        })))
       }
     } catch (_) { setEntities([]) }
     setLoadingEntities(false)
