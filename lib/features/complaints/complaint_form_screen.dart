@@ -59,7 +59,7 @@ class _ComplaintFormScreenState extends State<ComplaintFormScreen> {
       String? photoUrl;
       if (_photo != null) {
         setState(() => _isUploadingPhoto = true);
-        photoUrl = await ApiClient.uploadFile(File(_photo!.path));
+        photoUrl = await ApiClient.uploadPhoto(File(_photo!.path));
         setState(() => _isUploadingPhoto = false);
       }
 
