@@ -251,6 +251,26 @@ class _ComplaintDetailsScreenState extends State<ComplaintDetailsScreen> {
                   ),
 
                   const SizedBox(height: 14),
+                  if (complaint!['photoUrl'] != null && complaint!['photoUrl'].toString().isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [BoxShadow(color: const Color(0xFF1A1714).withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4))],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.network(
+                          'https://management.ermarscastar.in${complaint!['photoUrl']}',
+                          fit: BoxFit.cover,
+                          height: 200,
+                          errorBuilder: (_, __, ___) => const SizedBox(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
 
                   // ── Meta info card ───────────────────────────────
                   Container(
