@@ -413,7 +413,7 @@ class _ChecklistExecutionScreenState extends State<ChecklistExecutionScreen> {
 
           // Submit bar
           Container(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 32),
+            padding: EdgeInsets.fromLTRB(18, 14, 18, 100 + MediaQuery.paddingOf(context).bottom),
             decoration: const BoxDecoration(
               color: Colors.white,
               border: Border(top: BorderSide(color: Color(0xFFEDE7DD))),
