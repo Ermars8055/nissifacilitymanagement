@@ -113,7 +113,7 @@ export default function Buildings() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ clientId: clientIdFilter, name: '', location: '', totalFloors: '' })
+  const [form, setForm] = useState({ clientId: clientIdFilter, name: '', location: '' })
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -140,9 +140,9 @@ export default function Buildings() {
     e.preventDefault()
     setSaving(true)
     try {
-      await api.post('/Hierarchy/buildings', { ...form, totalFloors: parseInt(form.totalFloors) || 0 })
+      await api.post('/Hierarchy/buildings', { ...form })
       setShowForm(false)
-      setForm({ clientId: clientIdFilter, name: '', location: '', totalFloors: '' })
+      setForm({ clientId: clientIdFilter, name: '', location: '' })
       fetchAll()
     } catch (_) {}
     setSaving(false)
@@ -212,10 +212,6 @@ export default function Buildings() {
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Location *</label>
               <input required className="input" placeholder="New York, NY" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Total Floors</label>
-              <input type="number" className="input" placeholder="10" value={form.totalFloors} onChange={e => setForm(f => ({ ...f, totalFloors: e.target.value }))} />
             </div>
             <div className="sm:col-span-2 flex gap-3 justify-end pt-2">
               <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
