@@ -78,7 +78,7 @@ function DetailDrawer({ complaint, users, onClose, onUpdate }) {
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Attached Photo</label>
               <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm max-h-64 flex justify-center bg-gray-50">
                 <img 
-                  src={`https://management.ermarscastar.in${complaint.photoUrl}`} 
+                  src={`https://management.ermarscastar.in/api${complaint.photoUrl}`} 
                   alt="Complaint attachment" 
                   className="max-h-64 object-contain"
                   onError={(e) => { e.target.style.display = 'none'; }}
