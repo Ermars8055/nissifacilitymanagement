@@ -19,6 +19,8 @@ export default function Building3DViewer() {
   const buildingRef = useRef(building)
   useEffect(() => { buildingRef.current = building }, [building])
 
+  const buildingLoadedRef = useRef(false)
+
   // 1. Fetch full building structure + all assets for all floors
   useEffect(() => {
     async function fetchAll() {
@@ -27,6 +29,7 @@ export default function Building3DViewer() {
         const bld = bldRes.data
         
         const floors = bld.floors || []
+        floors.sort((a, b) => (a.level || 0) - (b.level || 0))
         const assetMap = {}
         for (const floor of floors) {
           const rooms = floor.rooms || []
@@ -41,7 +44,7 @@ export default function Building3DViewer() {
           assetMap[floor.id] = allAssets
         }
         
-        setBuilding({ ...bld, _assetMap: assetMap })
+        setBuilding({ ...bld, floors, _assetMap: assetMap })
       } catch (e) {
         setError(e.message)
       } finally {
@@ -123,7 +126,8 @@ export default function Building3DViewer() {
 
   // 3. Send data when engine is ready
   useEffect(() => {
-    if (engineReady && building && iframeRef.current) {
+    if (engineReady && building && iframeRef.current && !buildingLoadedRef.current) {
+      buildingLoadedRef.current = true;
       const iframe = iframeRef.current
       iframe.contentWindow.postMessage(JSON.stringify({
         type: 'load_building',
