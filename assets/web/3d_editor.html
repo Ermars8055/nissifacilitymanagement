@@ -256,7 +256,9 @@
         // Listen on both canvas AND document so releasing outside canvas still fires
         const onPointerUp = (e) => {
             if (dragged) {
-                notifyFlutter({ type: 'asset_moved', id: dragged.userData.id, x: dragged.position.x, z: dragged.position.z });
+                const logicalX = (dragged.position.x + (ROOM_W / 2)) * 20;
+                const logicalZ = (dragged.position.z + (ROOM_D / 2)) * 15;
+                notifyFlutter({ type: 'asset_moved', id: dragged.userData.id, x: logicalX, z: logicalZ });
                 dragged = null;
                 orbit.enabled = true;
             }
