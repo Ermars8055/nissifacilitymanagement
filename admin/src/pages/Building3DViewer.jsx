@@ -29,7 +29,22 @@ export default function Building3DViewer() {
         const bld = bldRes.data
         
         const floors = bld.floors || []
-        floors.sort((a, b) => (a.level || 0) - (b.level || 0))
+        floors.sort((a, b) => {
+          const lvlA = a.level !== undefined && a.level !== null ? a.level : 0;
+          const lvlB = b.level !== undefined && b.level !== null ? b.level : 0;
+          if (lvlA !== lvlB) return lvlA - lvlB;
+          
+          const nameA = (a.name || '').toLowerCase();
+          const nameB = (b.name || '').toLowerCase();
+          
+          if (nameA.includes('ground') && !nameB.includes('ground')) return -1;
+          if (nameB.includes('ground') && !nameA.includes('ground')) return 1;
+          
+          if (nameA.includes('first') && !nameB.includes('first')) return -1;
+          if (nameB.includes('first') && !nameA.includes('first')) return 1;
+          
+          return nameA.localeCompare(nameB);
+        })
         const assetMap = {}
         for (const floor of floors) {
           const rooms = floor.rooms || []
