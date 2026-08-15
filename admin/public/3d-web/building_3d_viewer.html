@@ -396,11 +396,14 @@ function toggleIsolation(idx, chipElement) {
         isolatedFloorIdx = -1;
         document.querySelectorAll('.fchip').forEach(c => c.classList.remove('active'));
         floorMeta.forEach(m => m.group.visible = true);
+        notifyFlutter({ type: 'floor_isolated', floorId: null });
     } else {
         isolatedFloorIdx = idx;
         document.querySelectorAll('.fchip').forEach(c => c.classList.remove('active'));
         chipElement.classList.add('active');
         floorMeta.forEach((m, i) => m.group.visible = (i === idx));
+        const floorId = floorMeta[idx].floorId;
+        notifyFlutter({ type: 'floor_isolated', floorId });
     }
 }
 
