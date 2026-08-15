@@ -608,7 +608,53 @@ window.addEventListener('message', e => {
             const w = toWorld(m.x ?? PLAN_W/2, m.z ?? PLAN_D/2);
             g.position.set(w.x, meta.floorY, w.z);
         }
+        if (m.type === 'remove_asset') {
+            const idx = dragTargets.findIndex(t => t.userData.id === m.id);
+            if (idx > -1) {
+                const root = dragTargets[idx].userData.assetRoot;
+                if (root.userData.meta) root.userData.meta.group.remove(root);
+                else scene.remove(root);
+                for (let i = dragTargets.length - 1; i >= 0; i--) {
+                    if (dragTargets[i].userData.id === m.id) dragTargets.splice(i, 1);
+                }
+            }
+        }
     } catch (_) {}
+});
+
+// ───────────────────────────────────────────────────────────
+// DRAG AND DROP EXTERNAL
+// ───────────────────────────────────────────────────────────
+renderer.domElement.addEventListener('dragover', (e) => {
+    e.preventDefault(); // allow drop
+    e.dataTransfer.dropEffect = 'copy';
+});
+
+renderer.domElement.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const assetId = e.dataTransfer.getData('text/plain');
+    if (!assetId) return;
+
+    const r = renderer.domElement.getBoundingClientRect();
+    const m = new THREE.Vector2();
+    m.x =  ((e.clientX - r.left) / r.width ) * 2 - 1;
+    m.y = -((e.clientY - r.top ) / r.height) * 2 + 1;
+
+    raycaster.setFromCamera(m, camera);
+    const hits = raycaster.intersectObjects(floorMeta.map(fm => fm.group), true);
+    if (hits.length > 0) {
+        let obj = hits[0].object;
+        let meta = null;
+        while (obj) {
+            meta = floorMeta.find(fm => fm.group === obj);
+            if (meta) break;
+            obj = obj.parent;
+        }
+        if (meta) {
+            const f = fromWorld(hits[0].point.x, hits[0].point.z);
+            notifyFlutter({ type:'asset_dropped', id: assetId, floorId: meta.floorId, x: f.x, z: f.z });
+        }
+    }
 });
 
 // ───────────────────────────────────────────────────────────
