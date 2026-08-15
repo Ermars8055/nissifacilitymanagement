@@ -73,15 +73,16 @@ function DetailDrawer({ complaint, users, onClose, onUpdate }) {
             )}
           </div>
 
+          {(() => { console.log('[Complaint photo debug]', complaint.id, complaint.photoUrl); return null; })()}
           {complaint.photoUrl && (
             <div className="mt-4">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Attached Photo</label>
               <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm max-h-64 flex justify-center bg-gray-50">
                 <img 
-                  src={`https://management.ermarscastar.in/api${complaint.photoUrl}`} 
+                  src={complaint.photoUrl.startsWith('http') ? complaint.photoUrl : `https://management.ermarscastar.in${complaint.photoUrl}`}
                   alt="Complaint attachment" 
                   className="max-h-64 object-contain"
-                  onError={(e) => { e.target.style.display = 'none'; }}
+                  onError={(e) => { console.error('[Photo load error]', e.target.src); e.target.parentElement.innerHTML = `<p class="text-red-500 text-xs p-4">Failed to load: ${e.target.src}</p>`; }}
                 />
               </div>
             </div>
