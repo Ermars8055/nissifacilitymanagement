@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Box, MapPin, Search } from 'lucide-react'
+import { ArrowLeft, Box, MapPin, Search, X } from 'lucide-react'
 import api from '../api/client'
 
 export default function Room3DViewer() {
@@ -14,6 +14,9 @@ export default function Room3DViewer() {
   const [error, setError] = useState(null)
   const [engineReady, setEngineReady] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const assetsRef = useRef(assets)
+  useEffect(() => { assetsRef.current = assets }, [assets])
 
   // 1. Fetch room details + assets
   useEffect(() => {
@@ -57,6 +60,31 @@ export default function Room3DViewer() {
             }
             return next
           })
+        } else if (data.type === 'asset_dropped') {
+          const { id: assetId, x, z } = data;
+          const currentAssets = assetsRef.current;
+          
+          const foundAsset = currentAssets.find(a => a.id === assetId);
+          if (foundAsset) {
+            api.put(`/Assets/${assetId}/position`, { assetPosX: x, assetPosY: z }).catch(console.error);
+            setAssets(prev => {
+              const next = [...prev];
+              const idx = next.findIndex(a => a.id === assetId);
+              if (idx > -1) {
+                next[idx] = { ...next[idx], assetPosX: x, assetPosY: z };
+              }
+              return next;
+            });
+            if (iframeRef.current) {
+              iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                type: 'add_asset',
+                id: assetId,
+                name: foundAsset.name,
+                x: x,
+                z: z
+              }), '*');
+            }
+          }
         }
       } catch (err) {}
     }
@@ -81,39 +109,30 @@ export default function Room3DViewer() {
         }), '*')
       }
     }
-  }, [engineReady, room]) // Intentionally not dependent on `assets` so it doesn't re-trigger add_asset multiple times for all items
+  }, [engineReady, room]) 
 
-  const handlePlaceAsset = async (asset) => {
+  const handleUnplaceAsset = async (asset) => {
     try {
-      const defaultX = 200
-      const defaultZ = 150
-      
-      await api.put(`/Assets/${asset.id}/position`, {
-        assetPosX: defaultX,
-        assetPosY: defaultZ
-      })
-      
+      await api.put(`/Assets/${asset.id}/position`, { assetPosX: null, assetPosY: null });
       setAssets(prev => {
-        const next = [...prev]
-        const idx = next.findIndex(a => a.id === asset.id)
+        const next = [...prev];
+        const idx = next.findIndex(a => a.id === asset.id);
         if (idx > -1) {
-          next[idx] = { ...next[idx], assetPosX: defaultX, assetPosY: defaultZ }
+          next[idx] = { ...next[idx], assetPosX: null, assetPosY: null };
         }
-        return next
-      })
-      
+        return next;
+      });
       if (iframeRef.current) {
-        iframeRef.current.contentWindow.postMessage(JSON.stringify({
-          type: 'add_asset',
-          id: asset.id,
-          name: asset.name,
-          x: defaultX,
-          z: defaultZ
-        }), '*')
+        iframeRef.current.contentWindow.postMessage(JSON.stringify({ type: 'remove_asset', id: asset.id }), '*');
       }
-    } catch (err) {
-      console.error('Failed to place asset', err)
+    } catch (e) {
+      console.error('Failed to unplace asset', e);
     }
+  }
+
+  const handleDragStart = (e, asset) => {
+    e.dataTransfer.setData('text/plain', asset.id);
+    e.dataTransfer.effectAllowed = 'copy';
   }
 
   if (loading) return <div className="text-center text-gray-400 py-16">Loading 3D Room...</div>
@@ -184,18 +203,21 @@ export default function Room3DViewer() {
               ) : (
                 <div className="space-y-2">
                   {unplacedAssets.map(asset => (
-                    <div key={asset.id} className="p-3 bg-white border border-orange-200 rounded-lg shadow-sm hover:border-orange-300 transition-colors">
+                    <div 
+                      key={asset.id} 
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, asset)}
+                      className="p-3 bg-white border border-orange-200 rounded-lg shadow-sm hover:border-orange-300 transition-colors cursor-grab active:cursor-grabbing"
+                      title="Drag and drop onto the 3D floor to place"
+                    >
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-sm font-medium text-gray-800 line-clamp-1" title={asset.name}>{asset.name}</p>
+                          <p className="text-sm font-medium text-gray-800 line-clamp-1">{asset.name}</p>
                           <p className="text-xs text-gray-500">{asset.category?.name || 'Asset'}</p>
                         </div>
-                        <button 
-                          onClick={() => handlePlaceAsset(asset)}
-                          className="text-[10px] uppercase font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200 transition-colors"
-                        >
-                          Place
-                        </button>
+                        <div className="text-[10px] uppercase font-bold text-orange-400 border border-orange-200 px-1.5 py-0.5 rounded pointer-events-none">
+                          Drag
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -217,7 +239,7 @@ export default function Room3DViewer() {
               ) : (
                 <div className="space-y-2">
                   {placedAssets.map(asset => (
-                    <div key={asset.id} className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-3 opacity-80 hover:opacity-100 transition-opacity">
+                    <div key={asset.id} className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-3 group">
                       <div className="mt-0.5">
                         <MapPin size={14} className="text-emerald-500" />
                       </div>
@@ -225,6 +247,13 @@ export default function Room3DViewer() {
                         <p className="text-sm font-medium text-gray-700 line-clamp-1">{asset.name}</p>
                         <p className="text-xs text-gray-500">{asset.category?.name || 'Asset'}</p>
                       </div>
+                      <button 
+                        onClick={() => handleUnplaceAsset(asset)}
+                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 -mr-1"
+                        title="Remove from floor"
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
                   ))}
                 </div>

@@ -446,7 +446,44 @@
                 if (msg.type === 'add_asset') {
                     window.addAsset(msg.id, msg.name, msg.x ?? 200, msg.z ?? 150);
                 }
+                if (msg.type === 'remove_asset') {
+                    const idx = placedObjects.findIndex(c => c.userData.id === msg.id);
+                    if (idx > -1) {
+                        const root = placedObjects[idx].userData.group;
+                        scene.remove(root);
+                        for (let i = placedObjects.length - 1; i >= 0; i--) {
+                            if (placedObjects[i].userData.id === msg.id) placedObjects.splice(i, 1);
+                        }
+                    }
+                }
             } catch(_) {}
+        });
+
+        // ────────────────────────────────
+        // DRAG AND DROP EXTERNAL
+        // ────────────────────────────────
+        renderer.domElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        renderer.domElement.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const assetId = e.dataTransfer.getData('text/plain');
+            if (!assetId) return;
+
+            const r = renderer.domElement.getBoundingClientRect();
+            const m = new THREE.Vector2();
+            m.x =  ((e.clientX - r.left) / r.width ) * 2 - 1;
+            m.y = -((e.clientY - r.top ) / r.height) * 2 + 1;
+
+            raycaster.setFromCamera(m, camera);
+            const hits = raycaster.intersectObject(floor);
+            if (hits.length > 0) {
+                const logicalX = (hits[0].point.x + (ROOM_W / 2)) * 20;
+                const logicalZ = (hits[0].point.z + (ROOM_D / 2)) * 15;
+                notifyFlutter({ type: 'asset_dropped', id: assetId, x: logicalX, z: logicalZ });
+            }
         });
 
         // Engine ready

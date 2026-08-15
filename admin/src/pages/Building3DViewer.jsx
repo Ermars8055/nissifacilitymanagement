@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Box, MapPin, Search } from 'lucide-react'
+import { ArrowLeft, Box, MapPin, Search, X } from 'lucide-react'
 import api from '../api/client'
 
 export default function Building3DViewer() {
@@ -15,6 +15,9 @@ export default function Building3DViewer() {
   
   const [activeFloorId, setActiveFloorId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const buildingRef = useRef(building)
+  useEffect(() => { buildingRef.current = building }, [building])
 
   // 1. Fetch full building structure + all assets for all floors
   useEffect(() => {
@@ -77,6 +80,40 @@ export default function Building3DViewer() {
           })
         } else if (data.type === 'floor_isolated') {
           setActiveFloorId(data.floorId)
+        } else if (data.type === 'asset_dropped') {
+          const { id: assetId, floorId, x, z } = data;
+          const bld = buildingRef.current;
+          if (!bld) return;
+          
+          let foundAsset = null;
+          for (const fId of Object.keys(bld._assetMap)) {
+            const ast = bld._assetMap[fId].find(a => a.id === assetId);
+            if (ast) { foundAsset = ast; break; }
+          }
+          
+          if (foundAsset) {
+            api.put(`/Assets/${assetId}/position`, { assetPosX: x, assetPosY: z }).catch(console.error);
+            setBuilding(prev => {
+              const next = { ...prev };
+              for (const fId of Object.keys(next._assetMap)) {
+                const idx = next._assetMap[fId].findIndex(a => a.id === assetId);
+                if (idx > -1) {
+                   next._assetMap[fId][idx] = { ...next._assetMap[fId][idx], assetPosX: x, assetPosY: z };
+                }
+              }
+              return next;
+            });
+            if (iframeRef.current) {
+               iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                 type: 'add_asset',
+                 id: assetId,
+                 name: foundAsset.name,
+                 floorId: floorId,
+                 x: x,
+                 z: z
+               }), '*');
+            }
+          }
         }
       } catch (err) {}
     }
@@ -115,40 +152,30 @@ export default function Building3DViewer() {
     }
   }, [engineReady, building])
 
-  const handlePlaceAsset = async (asset, floorId) => {
+  const handleUnplaceAsset = async (asset) => {
     try {
-      const defaultX = 200
-      const defaultZ = 150
-      
-      await api.put(`/Assets/${asset.id}/position`, {
-        assetPosX: defaultX,
-        assetPosY: defaultZ
-      })
-      
+      await api.put(`/Assets/${asset.id}/position`, { assetPosX: null, assetPosY: null });
       setBuilding(prev => {
-        const next = { ...prev }
-        if (next._assetMap[floorId]) {
-          const idx = next._assetMap[floorId].findIndex(a => a.id === asset.id)
+        const next = { ...prev };
+        for (const fId of Object.keys(next._assetMap)) {
+          const idx = next._assetMap[fId].findIndex(a => a.id === asset.id);
           if (idx > -1) {
-            next._assetMap[floorId][idx] = { ...next._assetMap[floorId][idx], assetPosX: defaultX, assetPosY: defaultZ }
+             next._assetMap[fId][idx] = { ...next._assetMap[fId][idx], assetPosX: null, assetPosY: null };
           }
         }
-        return next
-      })
-      
+        return next;
+      });
       if (iframeRef.current) {
-        iframeRef.current.contentWindow.postMessage(JSON.stringify({
-          type: 'add_asset',
-          id: asset.id,
-          name: asset.name,
-          floorId: floorId,
-          x: defaultX,
-          z: defaultZ
-        }), '*')
+        iframeRef.current.contentWindow.postMessage(JSON.stringify({ type: 'remove_asset', id: asset.id }), '*');
       }
-    } catch (err) {
-      console.error('Failed to place asset', err)
+    } catch (e) {
+      console.error('Failed to unplace asset', e);
     }
+  }
+
+  const handleDragStart = (e, asset) => {
+    e.dataTransfer.setData('text/plain', asset.id);
+    e.dataTransfer.effectAllowed = 'copy';
   }
 
   if (loading) return <div className="text-center text-gray-400 py-16">Loading 3D Building...</div>
@@ -242,22 +269,21 @@ export default function Building3DViewer() {
               ) : (
                 <div className="space-y-2">
                   {unplacedAssets.map(asset => (
-                    <div key={asset.id} className="p-3 bg-white border border-orange-200 rounded-lg shadow-sm hover:border-orange-300 transition-colors">
+                    <div 
+                      key={asset.id} 
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, asset)}
+                      className="p-3 bg-white border border-orange-200 rounded-lg shadow-sm hover:border-orange-300 transition-colors cursor-grab active:cursor-grabbing"
+                      title="Drag and drop onto the 3D floor to place"
+                    >
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-sm font-medium text-gray-800 line-clamp-1" title={asset.name}>{asset.name}</p>
+                          <p className="text-sm font-medium text-gray-800 line-clamp-1">{asset.name}</p>
                           <p className="text-xs text-gray-500">{asset.category?.name || 'Asset'}</p>
                         </div>
-                        {activeFloorId ? (
-                          <button 
-                            onClick={() => handlePlaceAsset(asset, activeFloorId)}
-                            className="text-[10px] uppercase font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200 transition-colors"
-                          >
-                            Place
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-gray-400 block mt-1 text-right max-w-[60px] leading-tight">Select Floor</span>
-                        )}
+                        <div className="text-[10px] uppercase font-bold text-orange-400 border border-orange-200 px-1.5 py-0.5 rounded pointer-events-none">
+                          Drag
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -279,7 +305,7 @@ export default function Building3DViewer() {
               ) : (
                 <div className="space-y-2">
                   {placedAssets.map(asset => (
-                    <div key={asset.id} className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-3 opacity-80 hover:opacity-100 transition-opacity">
+                    <div key={asset.id} className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-3 group">
                       <div className="mt-0.5">
                         <MapPin size={14} className="text-emerald-500" />
                       </div>
@@ -287,6 +313,13 @@ export default function Building3DViewer() {
                         <p className="text-sm font-medium text-gray-700 line-clamp-1">{asset.name}</p>
                         <p className="text-xs text-gray-500">{asset.category?.name || 'Asset'}</p>
                       </div>
+                      <button 
+                        onClick={() => handleUnplaceAsset(asset)}
+                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 -mr-1"
+                        title="Remove from floor"
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
                   ))}
                 </div>
