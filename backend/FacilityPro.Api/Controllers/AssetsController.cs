@@ -80,9 +80,9 @@ public class AssetsController : ControllerBase
             .Include(a => a.Category)
             .Include(a => a.Room)
             .Include(a => a.Building)
-            .FirstOrDefaultAsync(a => a.QrCode == qrCode);
+            .FirstOrDefaultAsync(a => a.QrCode == qrCode || a.Id == qrCode);
             
-        if (asset == null) return NotFound("Asset not found for this QR code");
+        if (asset == null) return NotFound("Asset not found for this QR code or ID");
 
         var tasks = await _context.Tasks
             .Where(t => t.EntityType == "Asset" && t.EntityId == asset.Id)
