@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import api from '../api/client'
+import ReportBug from './ReportBug'
 
 const nav = [
   { section: 'Overview' },
@@ -277,6 +278,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <ReportBug />
     </div>
   )
 }

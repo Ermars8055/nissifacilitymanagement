@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import Layout from './components/Layout'
-import ReportBug from './components/ReportBug'
 import LoginPage from './pages/LoginPage'
 import Dashboard from './pages/Dashboard'
 import Clients from './pages/Clients'
@@ -64,7 +63,6 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <ProtectedRoutes />
-        <ReportBug />
       </BrowserRouter>
     </AuthProvider>
   )
