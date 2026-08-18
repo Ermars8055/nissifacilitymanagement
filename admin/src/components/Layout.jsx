@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Building2, Briefcase,
   ClipboardList, AlertCircle, Package, ChevronRight,
   Bell, Search, LogOut, CalendarClock, ListChecks, BarChart2,
-  Settings, X, ClipboardCheck
+  Settings, X, ClipboardCheck, Bug
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import api from '../api/client'
@@ -23,7 +23,8 @@ const nav = [
   { to: '/pm-scheduler', icon: CalendarClock,    label: 'PM Scheduler' },
   { to: '/checklists',   icon: ListChecks,       label: 'Checklists' },
   { section: 'Admin' },
-  { to: '/users',        icon: Users,            label: 'Users' },
+  { to: '/users',             icon: Users,            label: 'Users' },
+  { to: '/developer-tickets', icon: Bug,              label: 'Dev Tickets' },
 ]
 
 function initials(name = '') {
