@@ -42,7 +42,7 @@ function TicketDrawer({ ticketId, onClose, onUpdated }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex justify-end z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex justify-end z-[60]" onClick={onClose}>
       <div className="bg-white w-full max-w-lg h-full shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="font-bold text-gray-900">Ticket Details</h2>
