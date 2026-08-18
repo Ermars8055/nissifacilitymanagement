@@ -84,6 +84,13 @@ public class DeveloperTicketsController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
+        ticket.History.Add(new DeveloperTicketHistory
+        {
+            Action = "Ticket Created",
+            Description = "User reported the issue.",
+            PerformedByUserId = userId
+        });
+
         _context.DeveloperTickets.Add(ticket);
         await _context.SaveChangesAsync();
 
@@ -106,10 +113,82 @@ public class DeveloperTicketsController : ControllerBase
                 t.Description,
                 t.ScreenshotUrl,
                 t.Status,
-                UserEmail = t.User != null ? t.User.Email : "Unknown"
+                UserEmail = t.User != null ? t.User.Email : "Unknown",
+                UserRole = t.User != null ? t.User.Role : "Unknown"
             })
             .ToListAsync();
 
         return Ok(tickets);
+    }
+
+    [HttpGet("{id}")]
+    [Authorize(Roles = "Admin, Super Admin")]
+    public async Task<IActionResult> GetTicket(string id)
+    {
+        var ticket = await _context.DeveloperTickets
+            .Include(t => t.User)
+            .Include(t => t.History)
+                .ThenInclude(h => h.PerformedByUser)
+            .FirstOrDefaultAsync(t => t.Id == id);
+
+        if (ticket == null) return NotFound();
+
+        return Ok(new {
+            ticket.Id,
+            ticket.CreatedAt,
+            ticket.DeviceOs,
+            ticket.AppVersion,
+            ticket.ScreenContext,
+            ticket.Description,
+            ticket.ScreenshotUrl,
+            ticket.Status,
+            UserEmail = ticket.User?.Email ?? "Unknown",
+            UserRole = ticket.User?.Role ?? "Unknown",
+            History = ticket.History.OrderByDescending(h => h.Timestamp).Select(h => new {
+                h.Id,
+                h.Timestamp,
+                h.Action,
+                h.Description,
+                PerformedBy = h.PerformedByUser?.Name ?? h.PerformedByUser?.Email ?? "System"
+            })
+        });
+    }
+
+    public class ResolveRequest
+    {
+        public string Status { get; set; } = string.Empty;
+        public string Comment { get; set; } = string.Empty;
+    }
+
+    [HttpPost("{id}/resolve")]
+    [Authorize(Roles = "Admin, Super Admin")]
+    public async Task<IActionResult> ResolveTicket(string id, [FromBody] ResolveRequest req)
+    {
+        var ticket = await _context.DeveloperTickets.FindAsync(id);
+        if (ticket == null) return NotFound();
+
+        ticket.Status = req.Status;
+
+        // Find current admin's email
+        var email = User.FindFirst(ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value;
+        string? adminId = null;
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var dbUser = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+            adminId = dbUser?.Id;
+        }
+
+        var history = new DeveloperTicketHistory
+        {
+            TicketId = ticket.Id,
+            Action = $"Status changed to {req.Status}",
+            Description = req.Comment,
+            PerformedByUserId = adminId
+        };
+
+        _context.DeveloperTicketHistories.Add(history);
+        await _context.SaveChangesAsync();
+
+        return Ok();
     }
 }
