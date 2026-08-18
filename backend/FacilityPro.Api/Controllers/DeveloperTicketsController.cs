@@ -62,6 +62,13 @@ public class DeveloperTicketsController : ControllerBase
 
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
+        // Verify the user exists in the local database to prevent SQLite Foreign Key constraint errors
+        // (In some auth flows, the token is valid but the user record hasn't synced to the local DB yet)
+        if (userId != null && !await _context.Users.AnyAsync(u => u.Id == userId))
+        {
+            userId = null;
+        }
+
         var ticket = new DeveloperTicket
         {
             UserId = userId,
