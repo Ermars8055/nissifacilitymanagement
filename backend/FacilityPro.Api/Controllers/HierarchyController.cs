@@ -18,7 +18,7 @@ public class HierarchyController : ControllerBase
     }
 
     [HttpGet("clients")]
-    [Authorize(Roles = "Admin, Super Admin")]
+    [Authorize(Roles = "Admin, Super Admin, Manager")]
     public async Task<IActionResult> GetClients()
     {
         var clients = await _context.Clients.ToListAsync();
