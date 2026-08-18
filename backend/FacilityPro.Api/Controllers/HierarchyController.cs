@@ -18,6 +18,7 @@ public class HierarchyController : ControllerBase
     }
 
     [HttpGet("clients")]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> GetClients()
     {
         var clients = await _context.Clients.ToListAsync();
@@ -109,6 +110,7 @@ public class HierarchyController : ControllerBase
     }
 
     [HttpPost("clients")]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> CreateClient([FromBody] Client client)
     {
         _context.Clients.Add(client);
@@ -161,6 +163,7 @@ public class HierarchyController : ControllerBase
     }
 
     [HttpPut("clients/{id}")]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> UpdateClient(string id, [FromBody] Client updated)
     {
         var client = await _context.Clients.FindAsync(id);
@@ -172,6 +175,7 @@ public class HierarchyController : ControllerBase
     }
 
     [HttpDelete("clients/{id}")]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> DeleteClient(string id)
     {
         var client = await _context.Clients.FindAsync(id);

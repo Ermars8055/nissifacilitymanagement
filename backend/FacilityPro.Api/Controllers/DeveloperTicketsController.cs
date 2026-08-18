@@ -88,7 +88,7 @@ public class DeveloperTicketsController : ControllerBase
     }
 
     [HttpGet]
-    // Normally we would restrict this to Admin only, but we'll allow it for now so the dashboard can fetch it
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> GetTickets()
     {
         var tickets = await _context.DeveloperTickets

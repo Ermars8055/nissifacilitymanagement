@@ -8,6 +8,7 @@ namespace FacilityPro.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin, Super Admin")]
 public class UsersController : ControllerBase
 {
     private readonly FacilityDbContext _context;
