@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import Layout from './components/Layout'
+import ReportBug from './components/ReportBug'
 import LoginPage from './pages/LoginPage'
 import Dashboard from './pages/Dashboard'
 import Clients from './pages/Clients'
@@ -16,6 +17,7 @@ import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import Building3DViewer from './pages/Building3DViewer'
 import Room3DViewer from './pages/Room3DViewer'
+import DeveloperTickets from './pages/DeveloperTickets'
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth()
@@ -50,6 +52,7 @@ function ProtectedRoutes() {
         <Route path="pm-scheduler" element={<PmScheduler />} />
         <Route path="checklists" element={<Checklists />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="developer-tickets" element={<DeveloperTickets />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
@@ -61,6 +64,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <ProtectedRoutes />
+        <ReportBug />
       </BrowserRouter>
     </AuthProvider>
   )

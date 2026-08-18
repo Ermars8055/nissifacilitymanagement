@@ -34,6 +34,9 @@ public class FacilityDbContext : DbContext
     public DbSet<WorkerSession> WorkerSessions { get; set; } = null!;
     public DbSet<TaskAppEvent> TaskAppEvents { get; set; } = null!;
 
+    // Developer Support
+    public DbSet<DeveloperTicket> DeveloperTickets { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
