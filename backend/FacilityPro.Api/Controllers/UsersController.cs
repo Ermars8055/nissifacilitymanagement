@@ -19,7 +19,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin, Super Admin")]
+    [Authorize(Roles = "Admin, Super Admin, Manager")]
     public async Task<IActionResult> GetUsers()
     {
         var users = await _context.Users
