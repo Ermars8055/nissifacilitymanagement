@@ -19,5 +19,8 @@ public class DeveloperTicket
     public string? ScreenshotUrl { get; set; }
 
     // Status tracking
-    public string Status { get; set; } = "Open"; // Open, InProgress, Resolved
+    public string Status { get; set; } = "Open"; // Open, InProgress, Resolved, Closed
+
+    // History Timeline
+    public ICollection<DeveloperTicketHistory> History { get; set; } = new List<DeveloperTicketHistory>();
 }

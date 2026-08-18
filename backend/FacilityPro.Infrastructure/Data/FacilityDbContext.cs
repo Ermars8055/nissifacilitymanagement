@@ -36,6 +36,7 @@ public class FacilityDbContext : DbContext
 
     // Developer Support
     public DbSet<DeveloperTicket> DeveloperTickets { get; set; } = null!;
+    public DbSet<DeveloperTicketHistory> DeveloperTicketHistories { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +57,12 @@ public class FacilityDbContext : DbContext
             .HasMany(f => f.ChecklistMappings)
             .WithOne(cm => cm.Floor)
             .HasForeignKey(cm => cm.FloorId);
+
+        modelBuilder.Entity<DeveloperTicket>()
+            .HasMany(t => t.History)
+            .WithOne(h => h.Ticket)
+            .HasForeignKey(h => h.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Floor>()
             .HasMany(f => f.Rooms)
