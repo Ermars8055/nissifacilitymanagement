@@ -15,7 +15,7 @@ const nav = [
   { to: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/reports',      icon: BarChart2,        label: 'Reports' },
   { section: 'Portfolio' },
-  { to: '/clients',      icon: Briefcase,        label: 'Clients' },
+  { to: '/clients',      icon: Briefcase,        label: 'Clients', adminOnly: true },
   { to: '/buildings',    icon: Building2,        label: 'Buildings' },
   { to: '/assets',       icon: Package,          label: 'Assets' },
   { section: 'Operations' },
@@ -23,9 +23,9 @@ const nav = [
   { to: '/complaints',   icon: AlertCircle,      label: 'Complaints' },
   { to: '/pm-scheduler', icon: CalendarClock,    label: 'PM Scheduler' },
   { to: '/checklists',   icon: ListChecks,       label: 'Checklists' },
-  { section: 'Admin' },
-  { to: '/users',             icon: Users,            label: 'Users' },
-  { to: '/developer-tickets', icon: Bug,              label: 'Dev Tickets' },
+  { section: 'Admin', adminOnly: true },
+  { to: '/users',             icon: Users,            label: 'Users', adminOnly: true },
+  { to: '/developer-tickets', icon: Bug,              label: 'Dev Tickets', adminOnly: true },
 ]
 
 function initials(name = '') {
@@ -205,7 +205,7 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 p-3 overflow-y-auto">
-          {nav.map((item, i) =>
+          {nav.filter(item => !item.adminOnly || user?.role === 'Admin' || user?.role === 'Super Admin').map((item, i) =>
             item.section ? (
               <p key={i} className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 pt-4 pb-1 first:pt-2">
                 {item.section}
@@ -234,9 +234,11 @@ export default function Layout() {
 
         {/* Bottom */}
         <div className="p-3 border-t border-gray-100 space-y-0.5">
-          <button onClick={() => navigate('/settings')} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 w-full">
-            <Settings size={17} /> Settings
-          </button>
+          {(user?.role === 'Admin' || user?.role === 'Super Admin') && (
+            <button onClick={() => navigate('/settings')} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-50 w-full">
+              <Settings size={17} /> Settings
+            </button>
+          )}
           <button onClick={logout} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 w-full">
             <LogOut size={17} /> Sign Out
           </button>

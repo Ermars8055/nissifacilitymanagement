@@ -21,11 +21,11 @@ export function AuthProvider({ children }) {
             headers: { Authorization: `Bearer ${token}` }
           })
           const backendUser = r.data
-          if (backendUser.role !== 'Admin' && backendUser.role !== 'Super Admin') {
+          if (backendUser.role !== 'Admin' && backendUser.role !== 'Super Admin' && backendUser.role !== 'Manager') {
             await signOutUser()
             setUser(null)
             setFirebaseUser(null)
-            setAuthError('Access denied. Admin role required.')
+            setAuthError('Access denied. Admin or Manager role required.')
           } else {
             setFirebaseUser(fbUser)
             setUser(backendUser)
@@ -61,9 +61,9 @@ export function AuthProvider({ children }) {
         return
       }
 
-      if (backendUser.role !== 'Admin' && backendUser.role !== 'Super Admin') {
+      if (backendUser.role !== 'Admin' && backendUser.role !== 'Super Admin' && backendUser.role !== 'Manager') {
         await signOutUser()
-        setAuthError('Access denied. Only Admin users can access this dashboard.')
+        setAuthError('Access denied. Only Admin or Manager users can access this dashboard.')
         return
       }
 
