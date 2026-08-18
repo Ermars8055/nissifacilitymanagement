@@ -254,14 +254,26 @@ export default function DeveloperTickets() {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <FileText size={14} />
-                  <span className="font-semibold text-gray-700">Reported By:</span>
-                  <span className="truncate">{ticket.userEmail}</span>
+                  <span className="truncate">{ticket.screenContext || 'No context'}</span>
+                </div>
+                <div className="pt-2 mt-2 border-t border-gray-200 flex items-center justify-between">
+                  <div className="text-xs font-medium text-gray-800">
+                    {ticket.userEmail} <span className="text-gray-400 font-normal">({ticket.userRole})</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity">View Details</span>
                 </div>
               </div>
-
             </div>
           ))}
         </div>
+      )}
+
+      {selectedTicket && (
+        <TicketDrawer 
+          ticketId={selectedTicket} 
+          onClose={() => setSelectedTicket(null)} 
+          onUpdated={fetchTickets}
+        />
       )}
     </div>
   );
