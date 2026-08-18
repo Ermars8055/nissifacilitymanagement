@@ -8,7 +8,7 @@ namespace FacilityPro.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin, Super Admin")]
+[Authorize]
 public class UsersController : ControllerBase
 {
     private readonly FacilityDbContext _context;
@@ -19,6 +19,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> GetUsers()
     {
         var users = await _context.Users
@@ -61,6 +62,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> CreateUser([FromBody] User user)
     {
         user.Id = Guid.NewGuid().ToString();
@@ -82,6 +84,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}/role")]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleDto dto)
     {
         var user = await _context.Users.FindAsync(id);
@@ -92,6 +95,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> DeleteUser(string id)
     {
         var user = await _context.Users.FindAsync(id);
@@ -104,6 +108,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("{id}/buildings")]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> AssignBuildings(string id, [FromBody] List<string> buildingIds)
     {
         var user = await _context.Users.FindAsync(id);
@@ -129,6 +134,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}/buildings")]
+    [Authorize(Roles = "Admin, Super Admin")]
     public async Task<IActionResult> UpdateUserBuildings(string id, [FromBody] List<string> buildingIds)
     {
         return await AssignBuildings(id, buildingIds);
