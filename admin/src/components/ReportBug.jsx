@@ -54,7 +54,13 @@ export default function ReportBug() {
       
     } catch (err) {
       console.error(err);
-      setError(err.response?.data || 'Failed to submit report. Please try again.');
+      let errorMsg = 'Failed to submit report. Please try again.';
+      if (err.response?.status === 413) {
+        errorMsg = 'File is too large. Please upload an image smaller than 10MB.';
+      } else if (err.response?.data && typeof err.response.data === 'string' && !err.response.data.includes('<html')) {
+        errorMsg = err.response.data;
+      }
+      setError(errorMsg);
     } finally {
       setSubmitting(false);
     }
