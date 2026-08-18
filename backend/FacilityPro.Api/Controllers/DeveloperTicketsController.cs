@@ -60,13 +60,16 @@ public class DeveloperTicketsController : ControllerBase
             screenshotUrl = $"/uploads/tickets/{fileName}";
         }
 
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var email = User.FindFirst(ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value;
+        string? userId = null;
 
-        // Verify the user exists in the local database to prevent SQLite Foreign Key constraint errors
-        // (In some auth flows, the token is valid but the user record hasn't synced to the local DB yet)
-        if (userId != null && !await _context.Users.AnyAsync(u => u.Id == userId))
+        if (!string.IsNullOrWhiteSpace(email))
         {
-            userId = null;
+            var dbUser = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+            if (dbUser != null)
+            {
+                userId = dbUser.Id;
+            }
         }
 
         var ticket = new DeveloperTicket
