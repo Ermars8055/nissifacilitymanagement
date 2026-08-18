@@ -25,6 +25,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// ── Claims Transformation ──────────────────────────────────────
+builder.Services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation, DatabaseClaimsTransformation>();
+
 // ── Controllers ────────────────────────────────────────────────
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
