@@ -150,6 +150,7 @@
         const orbit = new OrbitControls(camera, renderer.domElement);
         orbit.enableDamping = true;
         orbit.dampingFactor = 0.08;
+        orbit.zoomSpeed = 0.3; // Fix for Mac trackpad full-zoom bug
         orbit.minDistance = 5;
         orbit.maxDistance = 60;
         orbit.maxPolarAngle = Math.PI / 2 - 0.04;
