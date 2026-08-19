@@ -268,7 +268,10 @@ public class HierarchyController : ControllerBase
                 b.Location, 
                 b.ClientId, 
                 ClientName = b.Client!.Name,
-                TotalFloors = b.Floors.Count
+                TotalFloors = b.Floors.Count,
+                b.TargetLat,
+                b.TargetLng,
+                b.LobbyQrCode
             })
             .ToListAsync();
         return Ok(buildings);
