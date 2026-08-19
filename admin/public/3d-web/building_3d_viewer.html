@@ -123,10 +123,25 @@ scene.add(fillLight);
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.enableDamping = true;
 orbit.dampingFactor = 0.07;
-orbit.zoomSpeed = 0.3; // Fix for Mac trackpad full-zoom bug
+orbit.enableZoom = false; // Disable default zoom to fix Mac trackpad snapping
 orbit.minDistance   = 15;
 orbit.maxDistance   = 180;
 orbit.target.set(0, 5, 0);
+
+// Custom normalized zoom for exact, smooth control
+renderer.domElement.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomDirection = Math.sign(e.deltaY); 
+    const zoomFactor = zoomDirection > 0 ? 1.05 : 0.95; // 5% per scroll tick
+    
+    const dist = camera.position.distanceTo(orbit.target);
+    let newDist = dist * zoomFactor;
+    newDist = Math.max(orbit.minDistance, Math.min(orbit.maxDistance, newDist));
+    
+    const dir = new THREE.Vector3().subVectors(camera.position, orbit.target).normalize();
+    camera.position.copy(orbit.target).add(dir.multiplyScalar(newDist));
+    orbit.update();
+}, { passive: false });
 
 // ───────────────────────────────────────────────────────────
 // SHARED MATERIALS
