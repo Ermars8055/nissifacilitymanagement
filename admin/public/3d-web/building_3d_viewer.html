@@ -123,6 +123,7 @@ scene.add(fillLight);
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.enableDamping = true;
 orbit.dampingFactor = 0.07;
+orbit.zoomSpeed = 0.3; // Fix for Mac trackpad full-zoom bug
 orbit.minDistance   = 15;
 orbit.maxDistance   = 180;
 orbit.target.set(0, 5, 0);
