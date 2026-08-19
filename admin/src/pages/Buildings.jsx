@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Building2, MapPin, Layers, Search, Pencil, Trash2, X, ChevronLeft } from 'lucide-react'
+import QRCode from 'react-qr-code'
 import api from '../api/client'
 
 const HEALTH_COLOR = v => {
@@ -87,7 +88,14 @@ function EditModal({ building, clients, onClose, onSaved }) {
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-500 block mb-1">Lobby QR Code</label>
-              <input className="input text-sm font-mono" placeholder="e.g. QR-LOBBY-TOWER1" value={form.lobbyQrCode} onChange={e => setForm(f => ({ ...f, lobbyQrCode: e.target.value }))} />
+              <div className="flex items-start gap-3">
+                <input className="input text-sm font-mono flex-1" placeholder="e.g. QR-LOBBY-TOWER1" value={form.lobbyQrCode} onChange={e => setForm(f => ({ ...f, lobbyQrCode: e.target.value }))} />
+                {form.lobbyQrCode && (
+                  <div className="bg-white p-1 border border-gray-200 rounded-lg shrink-0">
+                    <QRCode value={form.lobbyQrCode} size={36} />
+                  </div>
+                )}
+              </div>
               <p className="text-xs text-gray-400 mt-1">Workers scan this QR at the building entrance to start their shift</p>
             </div>
           </div>

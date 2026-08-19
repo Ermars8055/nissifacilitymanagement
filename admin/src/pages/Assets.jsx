@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Package, Search, QrCode, Plus, X, Trash2 } from 'lucide-react'
+import QRCode from 'react-qr-code'
 import api from '../api/client'
 
 function RegisterForm({ onClose, onSaved }) {
@@ -230,9 +231,14 @@ export default function Assets() {
                     <p className="text-xs text-gray-400">{asset.room?.name || 'Building level'}</p>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className="flex items-center gap-1.5 text-xs font-mono text-gray-500">
-                      <QrCode size={13} className="text-gray-400" /> {asset.qrCode}
-                    </span>
+                    <div className="flex items-center gap-2 group/qr relative">
+                      <div className="bg-white p-0.5 border border-gray-200 rounded-sm cursor-zoom-in transition-transform duration-200 hover:scale-[3] hover:shadow-xl hover:z-50 origin-left">
+                        <QRCode value={asset.qrCode} size={24} />
+                      </div>
+                      <span className="text-[10px] font-mono text-gray-500">
+                        {asset.qrCode}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className={`badge ${asset.status === 'Active' || !asset.status ? 'bg-green-50 text-green-700' : asset.status === 'Under Maintenance' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>

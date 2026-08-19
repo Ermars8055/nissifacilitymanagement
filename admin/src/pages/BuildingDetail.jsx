@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Layers, DoorOpen, Trash2, Box } from 'lucide-react'
+import QRCode from 'react-qr-code'
 import api from '../api/client'
 
 export default function BuildingDetail() {
@@ -178,9 +179,14 @@ function FloorRow({ floor, index, buildingId, onDelete }) {
         <div className="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
           <span className="text-brand-600 font-bold text-sm">{index + 1}</span>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col justify-center gap-1.5">
           <p className="text-sm font-semibold text-gray-800">{floor.name}</p>
-          <p className="text-xs text-gray-400 font-mono">{floor.qrCode}</p>
+          <div className="flex items-center gap-2">
+            <div className="bg-white p-0.5 border border-gray-200 rounded-sm">
+              <QRCode value={floor.qrCode} size={20} />
+            </div>
+            <p className="text-xs text-gray-400 font-mono">{floor.qrCode}</p>
+          </div>
         </div>
         <span className="text-xs text-gray-400">{rooms.length > 0 ? `${rooms.length} rooms` : ''}</span>
         <button
@@ -229,7 +235,12 @@ function FloorRow({ floor, index, buildingId, onDelete }) {
                         <Trash2 size={11} />
                       </button>
                     </div>
-                    <p className="text-xs text-gray-400 font-mono mt-0.5">{room.qrCode}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <div className="bg-white p-0.5 border border-gray-200 rounded-sm">
+                        <QRCode value={room.qrCode} size={24} />
+                      </div>
+                      <p className="text-[10px] text-gray-400 font-mono">{room.qrCode}</p>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
                     <p className="text-xs text-gray-400">{room.assets?.length || 0} assets</p>
