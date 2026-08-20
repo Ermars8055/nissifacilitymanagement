@@ -32,8 +32,8 @@ class _RoomAssetsScreenState extends State<RoomAssetsScreen> {
     setState(() => isLoading = true);
     try {
       final assetsData = await ApiClient.get('/Assets/room/${widget.roomId}');
-      final clients = await ApiClient.get('/Hierarchy/clients');
-      final cId = clients.isNotEmpty ? clients.first['id'] : '';
+      final building = await ApiClient.get('/Hierarchy/building/${widget.buildingId}');
+      final cId = building['clientId'] ?? '';
       final catsData = await ApiClient.get('/Assets/categories/$cId');
 
       final parents = <dynamic>[];
