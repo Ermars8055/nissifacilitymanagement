@@ -209,8 +209,8 @@ public class AssetsController : ControllerBase
     [HttpPost("seed-categories")]
     public async Task<IActionResult> SeedMoreCategories()
     {
-        var client = await _context.Clients.FirstOrDefaultAsync();
-        if (client == null) return BadRequest("No clients found.");
+        var clients = await _context.Clients.ToListAsync();
+        if (clients.Count == 0) return BadRequest("No clients found.");
 
         // Remove assets first (FK constraint), then categories
         _context.Assets.RemoveRange(_context.Assets);
@@ -231,24 +231,28 @@ public class AssetsController : ControllerBase
         };
 
         var added = 0;
-        foreach (var group in groups)
+        foreach (var client in clients)
         {
-            // Save parent first so its ID is committed
-            var parent = new AssetCategory { ClientId = client.Id, Name = group.Key, Description = $"{group.Key} Category" };
-            _context.AssetCategories.Add(parent);
-            await _context.SaveChangesAsync(); // commit so parent.Id is real
-            added++;
-
-            foreach (var name in group.Value)
+            foreach (var group in groups)
             {
-                _context.AssetCategories.Add(new AssetCategory
-                {
-                    ClientId = client.Id,
-                    Name = name,
-                    Description = $"{name} Asset",
-                    ParentCategoryId = parent.Id
-                });
+                // Save parent first so its ID is committed
+                var parent = new AssetCategory { ClientId = client.Id, Name = group.Key, Description = $"{group.Key} Category" };
+                _context.AssetCategories.Add(parent);
+                await _context.SaveChangesAsync(); // commit so parent.Id is real
                 added++;
+
+                foreach (var name in group.Value)
+                {
+                    _context.AssetCategories.Add(new AssetCategory
+                    {
+                        ClientId = client.Id,
+                        Name = name,
+                        Description = $"{name} Asset",
+                        ParentCategoryId = parent.Id
+                    });
+                    added++;
+                }
+                await _context.SaveChangesAsync();
             }
             await _context.SaveChangesAsync();
         }
