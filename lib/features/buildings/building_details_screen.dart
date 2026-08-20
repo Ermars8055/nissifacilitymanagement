@@ -136,7 +136,11 @@ class _BuildingDetailsScreenState extends State<BuildingDetailsScreen> {
                 const Text('Visual Map', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Color(0xFF1A1714))),
                 const SizedBox(height: 14),
                 GestureDetector(
-                  onTap: () => context.push('/hierarchy-builder'),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Visual 2D Map is coming soon!')),
+                    );
+                  },
                   child: Container(
                     height: 160,
                     width: double.infinity,
@@ -161,9 +165,9 @@ class _BuildingDetailsScreenState extends State<BuildingDetailsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Explore Floor Plans', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                              Text('Visual 2D Map', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
                               SizedBox(height: 4),
-                              Text('View 2D layouts and asset maps', style: TextStyle(color: Color(0xFFA3B8A8), fontSize: 13)),
+                              Text('Coming Soon', style: TextStyle(color: Color(0xFFA3B8A8), fontSize: 13, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -223,7 +227,7 @@ class _BuildingDetailsScreenState extends State<BuildingDetailsScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 100),
+                const SizedBox(height: 140), // Increased padding to prevent FAB from overlapping Building Health
               ]),
             ),
           ),
